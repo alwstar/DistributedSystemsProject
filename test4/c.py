@@ -6,9 +6,8 @@ def discover_server():
     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     broadcast_socket.settimeout(5)
     
-    broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('<broadcast>', 37020))
-    
     try:
+        broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('<broadcast>', 37020))
         while True:
             data, addr = broadcast_socket.recvfrom(1024)
             if data.decode() == "SERVER_HERE":
@@ -17,6 +16,8 @@ def discover_server():
     except socket.timeout:
         print("Server discovery timed out.")
         return None
+    finally:
+        broadcast_socket.close()
 
 def start_minimal_client():
     server_ip = discover_server()

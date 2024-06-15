@@ -24,6 +24,7 @@ def start_minimal_server():
             print("No connection attempt in the last 3 seconds. Checking again...")
 
     server_socket.close()
+    broadcast_socket.close()
 
 if __name__ == "__main__":
     start_minimal_server()
