@@ -1,6 +1,8 @@
 import socket
 import common
 import time
+from time import sleep
+
 
 def receive_mesage():
     server_address = ('', common.SERVER_CLIENT_MESSAGE_PORT)
@@ -33,7 +35,7 @@ def disconnect_from_server():
     message = 'disconnected'
     message = message.encode()
     client_socket.send(message)
-    client_socket.close
+    client_socket.close()
 
 def connect_to_server():
     global client_socket
