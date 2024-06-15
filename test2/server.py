@@ -167,6 +167,7 @@ def bind_server_sock():
         while True:
             try:
                 client, address = server_socket.accept()
+                print(f"Accepted connection from {address}")
                 client_data = client.recv(1024)
                 if client_data:
                     print(f'{common.SERVER_IP}: Client {address[0]} is now connected')

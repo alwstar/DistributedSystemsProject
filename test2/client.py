@@ -39,6 +39,7 @@ def disconnect_from_server():
 def connect_to_server():
     global client_socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Attempting to join chat...")
     check_server_exist = request_to_join_chat()
     if check_server_exist:
         leader_address = (common.LEADER, common.SERVER_PORT_FOR_CLIENTS)
@@ -58,9 +59,10 @@ def connect_to_server():
         except Exception as err:
             print(f"Error connecting to server: {err}")
     else:
-        print('Did not work, trying again if possible.')
+        print('Did not work, trying again in 5 seconds...')
         client_socket.close()
-    connect_to_server()
+        sleep(5)
+        connect_to_server()
 
 def request_to_join_chat():
     message = common.serialize(['JOIN', '', '', ''])
@@ -70,6 +72,7 @@ def request_to_join_chat():
     try:
         data, address = sock.recvfrom(1024)
         common.LEADER = common.deserialize(data)[0]
+        print(f"Found leader: {common.LEADER}")
         return True
     except socket.timeout:
         print("Request to join chat timed out.")
