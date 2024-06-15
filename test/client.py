@@ -7,6 +7,9 @@ import pickle
 
 import thread_helper
 
+# Maximum number of reconnection attempts
+MAX_RECONNECT_ATTEMPTS = 5
+
 # listener to receive message sent from server to client over TCP
 def receive_mesage():
     server_address = ('', ports.SERVER_CLIENT_MESSAGE_PORT)
@@ -37,17 +40,22 @@ def check_leader_abailability():
         except Exception as err:
             print(err)
             break
+
 # disconnects from server and sends a message for disconnection
 def disconnect_from_server():
     global client_socket
 
-    message = 'disconnected'
-    message = message.encode()
-    client_socket.send(message)
-    client_socket.close
+    if client_socket:
+        try:
+            message = 'disconnected'
+            message = message.encode()
+            client_socket.send(message)
+        except OSError:
+            pass
+        client_socket.close()
 
 # main function to connect to the leader server over TCP
-def connect_to_server():
+def connect_to_server(reconnect_attempts=0):
     global client_socket  # defined as global to be able to use in other functions like disconnect_from_server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     check_server_exist = multicast_sender.requestToJoinChat()
@@ -56,27 +64,34 @@ def connect_to_server():
         leader_address = (multicast_data.LEADER, ports.SERVER_PORT_FOR_CLIENTS)
         print(f'{leader_address}: Hi, welcome to the room let me connect you...')
 
-        client_socket.connect(leader_address)
-        client_socket.send('JOIN'.encode('utf-8'))
-        print(f'You can start chatting now!')
-        thread_helper.newThread(check_leader_abailability, ())
-        while True:
-            message = input("")
-            try:
-                client_socket.send(message.encode('utf-8'))
-            except Exception as err:
-                print(err)
-                break
+        try:
+            client_socket.connect(leader_address)
+            client_socket.send('JOIN'.encode('utf-8'))
+            print(f'You can start chatting now!')
+            thread_helper.newThread(check_leader_abailability, ())
+            while True:
+                message = input("")
+                try:
+                    client_socket.send(message.encode('utf-8'))
+                except Exception as err:
+                    print(err)
+                    break
+        except socket.error as e:
+            print(f"Connection failed: {e}")
+            client_socket.close()
     else:
         print('Did not work trying again if possible.')
         client_socket.close()
-    connect_to_server()  # tries to reconnect here
+        if reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+            time.sleep(5)
+            connect_to_server(reconnect_attempts + 1)
+        else:
+            print('Maximum reconnection attempts reached.')
 
 if __name__ == '__main__':
     try:
         thread_helper.newThread(receive_mesage, ())
         connect_to_server()
     except KeyboardInterrupt:
-        print('\n You left the chat.')
+        print('\nYou left the chat.')
         disconnect_from_server()
-
