@@ -53,6 +53,8 @@ replicas = [Replica("Replica1"), Replica("Replica2"), Replica("Replica3")]
 db = ReplicatedDatabase(replicas)
 
 # Election-related functions
+heartbeat_status = {}  # Define heartbeat_status dictionary
+
 def get_next_participant():
     idx = participants.index((my_ip, ring_port))
     return participants[(idx + 1) % len(participants)]
@@ -163,6 +165,19 @@ def check_heartbeats():
                         leader_uid = None
                         start_leader_election()
         time.sleep(2)
+
+def heartbeat_listener():
+    global heartbeat_status
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((my_ip, ring_port + 1))  # Using a different port for heartbeat messages
+    while True:
+        data, addr = sock.recvfrom(1024)
+        try:
+            message = json.loads(data.decode())
+            if 'type' in message and message['type'] == 'heartbeat':
+                heartbeat_status[addr] = time.time()
+        except (json.JSONDecodeError, KeyError):
+            print(f"Received malformed heartbeat message from {addr}: {data}")
 
 if __name__ == "__main__":
     start_server()
