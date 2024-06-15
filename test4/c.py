@@ -5,13 +5,20 @@ def listen_for_server():
     listen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     listen_socket.bind(('', 37020))
+    listen_socket.settimeout(10)  # Erhöht den Timeout-Wert auf 10 Sekunden
     print("Listening for server broadcasts")
 
-    while True:
-        data, addr = listen_socket.recvfrom(1024)
-        if data.decode() == "SERVER_HERE":
-            print(f"Server found at {addr[0]}")
-            return addr[0]
+    try:
+        while True:
+            data, addr = listen_socket.recvfrom(1024)
+            if data.decode() == "SERVER_HERE":
+                print(f"Server found at {addr[0]}")
+                return addr[0]
+    except socket.timeout:
+        print("Server discovery timed out.")
+        return None
+    finally:
+        listen_socket.close()
 
 def start_minimal_client():
     server_ip = listen_for_server()
