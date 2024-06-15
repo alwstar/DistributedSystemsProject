@@ -111,7 +111,8 @@ def send_election_message(recipient, message):
     sock.sendto(json.dumps(message).encode(), recipient)
 
 def start_leader_election():
-    global is_leader
+    global is_leader, leader_uid
+    print("Starting leader election...")
     election_message = {"mid": my_uid, "isLeader": False}
     send_election_message(get_next_participant(), election_message)
 
@@ -130,6 +131,16 @@ def check_servers():
         if leader_uid is None:
             print("No leader found, starting election...")
             start_leader_election()
+            time.sleep(5)  # Wait to see if election succeeds
+            if leader_uid is None:
+                print("No other servers available, becoming leader...")
+                is_leader = True
+                leader_uid = my_uid
+                print(f"{server_name} is now the leader")
+                # Announce leadership
+                for participant in participants:
+                    if participant != (my_ip, ring_port):
+                        send_election_message(participant, {"mid": my_uid, "isLeader": True})
         time.sleep(2)
 
 def check_server(host, port):
