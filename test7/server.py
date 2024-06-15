@@ -133,6 +133,9 @@ def start_server():
     heartbeat_checker_thread = threading.Thread(target=check_heartbeats)
     heartbeat_checker_thread.start()
 
+    broadcast_thread = threading.Thread(target=broadcast_listener)
+    broadcast_thread.start()
+
     start_leader_election()
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -187,6 +190,19 @@ def heartbeat_listener():
                 heartbeat_status[addr] = time.time()
         except (json.JSONDecodeError, KeyError):
             print(f"Received malformed heartbeat message from {addr}: {data}")
+
+def broadcast_listener():
+    broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    broadcast_socket.bind(('', 37020))
+    print("Listening for broadcast messages on port 37020")
+
+    while True:
+        data, addr = broadcast_socket.recvfrom(1024)
+        if data.decode() == "DISCOVER_SERVER":
+            response_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            response_socket.sendto("SERVER_HERE".encode(), addr)
+            print(f"Responded to discovery from {addr}")
 
 if __name__ == "__main__":
     start_server()
