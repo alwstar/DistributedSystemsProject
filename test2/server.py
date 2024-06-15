@@ -4,6 +4,7 @@ import common
 import logging
 from time import sleep
 
+
 logging.basicConfig(filename='server.log', level=logging.INFO, format='%(asctime)s:%(name)s:%(message)s')
 
 def request_to_multicast():
