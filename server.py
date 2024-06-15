@@ -36,6 +36,7 @@ def broadcast(message, sender_socket):
                 clients.remove(client)
 
 def handle_client(client_socket, addr):
+    name = "Unknown"
     try:
         client_socket.send("Welcome! Please enter your name: ".encode())
         name = client_socket.recv(1024).decode().strip()
@@ -58,7 +59,8 @@ def handle_client(client_socket, addr):
     except:
         client_socket.close()
         clients.remove(client_socket)
-        broadcast(f"{name} has left the chat.".encode(), None)
+        if name != "Unknown":
+            broadcast(f"{name} has left the chat.".encode(), None)
 
 def start_server():
     global leader_uid
