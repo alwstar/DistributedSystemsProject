@@ -12,6 +12,8 @@ def start_minimal_server():
     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+    broadcast_address = '192.168.178.255'  # Beispiel: '255.255.255.255' oder '192.168.1.255'
+
     while True:
         try:
             server_socket.settimeout(3)  # Setzt einen Timeout von 3 Sekunden
@@ -22,7 +24,7 @@ def start_minimal_server():
             break  # Beendet den Server nach erfolgreicher Verbindung
         except socket.timeout:
             # Senden einer Broadcast-Nachricht, um den Clients die Anwesenheit des Servers mitzuteilen
-            broadcast_socket.sendto("SERVER_HERE".encode(), ('<broadcast>', 37020))
+            broadcast_socket.sendto("SERVER_HERE".encode(), (broadcast_address, 37020))
             print("Broadcasting SERVER_HERE message")
 
     server_socket.close()
