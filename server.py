@@ -8,10 +8,11 @@ import time
 clients = []
 client_names = {}
 server_name = "Server"
+my_uid = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
 my_ip = '127.0.0.1'
 ring_port = 10001
+is_leader = False
 
-# Funktion zur dynamischen Entdeckung von Hosts
 def discover_other_servers():
     global server_name
     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -35,7 +36,6 @@ def discover_other_servers():
     server_name = f"Server{server_count}"
     print(f"{server_name} is running.")
 
-# Broadcast listener für eingehende Discovery-Anfragen
 def broadcast_listener():
     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -48,7 +48,6 @@ def broadcast_listener():
             response_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             response_socket.sendto("SERVER_HERE".encode(), addr)
 
-# Chat Server Funktionen (TCP)
 def broadcast(message, sender_socket):
     for client in clients:
         if client != sender_socket:
@@ -87,11 +86,37 @@ def handle_client(client_socket, addr):
 
 def log_status():
     while True:
-        print(f"{server_name} is active.")
+        print(f"{server_name} is {'active (Leader)' if is_leader else 'active'}")
         print("Current clients:")
         for name in client_names.values():
             print(f" - {name}")
-        time.sleep(10)  # Log status every 10 seconds
+        time.sleep(10)
+
+def election_listener():
+    global is_leader
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((my_ip, ring_port))
+
+    while True:
+        data, addr = sock.recvfrom(1024)
+        message = json.loads(data.decode())
+        if message['isLeader']:
+            is_leader = (message['mid'] == my_uid)
+            print(f"Leader is now {message['mid']}")
+
+def send_election_message(recipient, message):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(json.dumps(message).encode(), recipient)
+
+def start_leader_election():
+    global is_leader
+    election_message = {"mid": my_uid, "isLeader": False}
+    send_election_message(get_next_participant(), election_message)
+
+def get_next_participant():
+    # Assuming a list of known participants
+    idx = participants.index((my_ip, ring_port))
+    return participants[(idx + 1) % len(participants)]
 
 def start_server():
     global server_name
@@ -109,6 +134,11 @@ def start_server():
     log_thread = threading.Thread(target=log_status)
     log_thread.start()
 
+    election_thread = threading.Thread(target=election_listener)
+    election_thread.start()
+
+    start_leader_election()
+
     while True:
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr} has been established.")
@@ -118,4 +148,5 @@ def start_server():
         client_thread.start()
 
 if __name__ == "__main__":
+    participants = [('127.0.0.1', 10001)]  # Update with actual participant addresses
     start_server()
