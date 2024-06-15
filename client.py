@@ -42,6 +42,9 @@ def start_client():
     receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
     receive_thread.start()
 
+    name = input("Please enter your name: ")
+    client_socket.send(name.encode())
+
     while True:
         message = input("> ")
         if message.lower() == 'quit':
