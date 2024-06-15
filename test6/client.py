@@ -40,16 +40,3 @@ def connect_to_server():
         client_socket.connect(leader_address)
         client_socket.send('JOIN'.encode())
         threading.Thread(target=check_leader_availability).start()
-        while True:
-            message = input("")
-            client_socket.send(message.encode('utf-8'))
-    else:
-        client_socket.close()
-        connect_to_server()
-
-if __name__ == '__main__':
-    try:
-        threading.Thread(target=receive_message).start()
-        connect_to_server()
-    except KeyboardInterrupt:
-        disconnect_from_server()

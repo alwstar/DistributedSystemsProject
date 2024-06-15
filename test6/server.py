@@ -19,6 +19,7 @@ def start_server():
 
     while True:
         client_socket, addr = server_socket.accept()
+        clients.append(client_socket)
         threading.Thread(target=handle_client, args=(client_socket, addr)).start()
 
 def handle_client(client_socket, addr):

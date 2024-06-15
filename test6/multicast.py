@@ -11,10 +11,11 @@ LEADER = ''
 SERVER_LIST = []
 CLIENT_LIST = []
 CLIENT_MESSAGES = []
+SERVER_IP = '127.0.0.1'  # Definition der SERVER_IP
 
 multicastAddress = (MCAST_GRP, MCAST_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(1)
+sock.settimeout(None)  # Timeout entfernen
 ttl = struct.pack('b', MULTICAST_TTL)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
@@ -38,6 +39,7 @@ def request_to_join_chat():
     sleep(0.5)
     try:
         data, address = sock.recvfrom(1024)
+        global LEADER
         LEADER = pickle.loads(data)[0]
         return True
     except socket.timeout:

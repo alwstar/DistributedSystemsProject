@@ -73,13 +73,4 @@ def send_new_leader_message():
             s.close()
 
 def receive_new_leader_message():
-    server_address = ('', LEADER_NOTIFICATION_PORT)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(server_address)
-    sock.listen()
-    while True:
-        conn, address = sock.accept()
-        new_leader_ip = conn.recv(1024).decode()
-        global LEADER
-        LEADER = new_leader_ip
-        conn.send('ack'.encode())
+    server_address = 
