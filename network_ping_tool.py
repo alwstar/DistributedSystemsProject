@@ -1,11 +1,14 @@
+import subprocess
 import time
-from ping3 import ping
 
 def ping_device(ip):
-    response = ping(ip)
-    if response is not None:
-        print(f"{ip} is reachable")
-    else:
+    try:
+        output = subprocess.check_output(["ping", "-n", "1", ip], stderr=subprocess.STDOUT, universal_newlines=True)
+        if "TTL=" in output:
+            print(f"{ip} is reachable")
+        else:
+            print(f"{ip} is not reachable")
+    except subprocess.CalledProcessError:
         print(f"{ip} is not reachable")
 
 def main():
