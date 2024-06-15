@@ -2,11 +2,13 @@ import socket
 import time
 
 def start_minimal_server():
+    # TCP Socket für den Server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(1)
     print("Minimal server listening on port 9999")
 
+    # UDP Socket für Broadcast-Nachrichten
     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
@@ -19,9 +21,9 @@ def start_minimal_server():
             client_socket.close()
             break  # Beendet den Server nach erfolgreicher Verbindung
         except socket.timeout:
-            # Senden einer Broadcast-Nachricht, um dem Client die Anwesenheit des Servers mitzuteilen
+            # Senden einer Broadcast-Nachricht, um den Clients die Anwesenheit des Servers mitzuteilen
             broadcast_socket.sendto("SERVER_HERE".encode(), ('<broadcast>', 37020))
-            print("No connection attempt in the last 3 seconds. Checking again...")
+            print("Broadcasting SERVER_HERE message")
 
     server_socket.close()
     broadcast_socket.close()
