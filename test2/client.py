@@ -67,7 +67,13 @@ def connect_to_server():
 def request_to_join_chat():
     message = common.serialize(['JOIN', '', '', ''])
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(message, (common.MCAST_GRP, common.MCAST_PORT))
+    sock.settimeout(1)  # Set a timeout for the socket operations
+    try:
+        sock.sendto(message, (common.MCAST_GRP, common.MCAST_PORT))
+        print(f"Sent join request to multicast group {common.MCAST_GRP}:{common.MCAST_PORT}")
+    except Exception as e:
+        print(f"Error sending join request: {e}")
+        return False
     sleep(0.5)
     try:
         data, address = sock.recvfrom(1024)
@@ -76,6 +82,9 @@ def request_to_join_chat():
         return True
     except socket.timeout:
         print("Request to join chat timed out.")
+        return False
+    except Exception as e:
+        print(f"Error receiving join response: {e}")
         return False
 
 if __name__ == '__main__':

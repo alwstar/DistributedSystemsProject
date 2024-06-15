@@ -266,6 +266,7 @@ def start_receiver():
     while True:
         try:
             data, address = sock.recvfrom(1024)
+            print(f"Received data from {address}: {data}")
             if address[0] != common.SERVER_IP:
                 print(f'{common.SERVER_IP}: Received data from {address} \n')
             if common.LEADER == common.SERVER_IP and common.deserialize(data)[0] == 'JOIN':
