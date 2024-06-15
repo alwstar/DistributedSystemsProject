@@ -12,6 +12,7 @@ my_uid = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
 my_ip = '127.0.0.1'
 ring_port = 10001
 is_leader = False
+leader_uid = None
 
 def discover_other_servers():
     global server_name
@@ -93,7 +94,7 @@ def log_status():
         time.sleep(10)
 
 def election_listener():
-    global is_leader
+    global is_leader, leader_uid
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((my_ip, ring_port))
 
@@ -101,6 +102,7 @@ def election_listener():
         data, addr = sock.recvfrom(1024)
         message = json.loads(data.decode())
         if message['isLeader']:
+            leader_uid = message['mid']
             is_leader = (message['mid'] == my_uid)
             print(f"Leader is now {message['mid']}")
 
@@ -117,6 +119,28 @@ def get_next_participant():
     # Assuming a list of known participants
     idx = participants.index((my_ip, ring_port))
     return participants[(idx + 1) % len(participants)]
+
+def check_servers():
+    global is_leader, leader_uid
+    while True:
+        for participant in participants:
+            if participant != (my_ip, ring_port):
+                if not check_server(participant[0], participant[1]):
+                    print(f"{participant} is down")
+        if leader_uid is None:
+            print("No leader found, starting election...")
+            start_leader_election()
+        time.sleep(2)
+
+def check_server(host, port):
+    try:
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.settimeout(1)
+        client_socket.connect((host, port))
+        client_socket.close()
+        return True
+    except socket.error:
+        return False
 
 def start_server():
     global server_name
@@ -137,6 +161,9 @@ def start_server():
     election_thread = threading.Thread(target=election_listener)
     election_thread.start()
 
+    check_thread = threading.Thread(target=check_servers)
+    check_thread.start()
+
     start_leader_election()
 
     while True:
@@ -148,5 +175,5 @@ def start_server():
         client_thread.start()
 
 if __name__ == "__main__":
-    participants = [('127.0.0.1', 10001)]  # Update with actual participant addresses
+    participants = [('127.0.0.1', 10001), ('127.0.0.1', 10002)]  # Update with actual participant addresses
     start_server()
