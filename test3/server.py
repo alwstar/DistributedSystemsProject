@@ -131,9 +131,12 @@ def heartbeat_listener():
     sock.bind((my_ip, ring_port + 1))  # Using a different port for heartbeat messages
     while True:
         data, addr = sock.recvfrom(1024)
-        message = json.loads(data.decode())
-        if message['type'] == 'heartbeat':
-            heartbeat_status[addr] = time.time()
+        try:
+            message = json.loads(data.decode())
+            if 'type' in message and message['type'] == 'heartbeat':
+                heartbeat_status[addr] = time.time()
+        except (json.JSONDecodeError, KeyError):
+            print(f"Received malformed heartbeat message from {addr}: {data}")
 
 def send_heartbeat():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
