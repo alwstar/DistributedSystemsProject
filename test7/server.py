@@ -80,9 +80,11 @@ def election_listener():
         else:
             if message['mid'] > my_uid:
                 send_election_message(get_next_participant(), message)
+                print(f"Forwarding election message with {message['mid']}")
             elif message['mid'] < my_uid:
                 message['mid'] = my_uid
                 send_election_message(get_next_participant(), message)
+                print(f"Updating and forwarding election message with {my_uid}")
             else:
                 leader_uid = my_uid
                 is_leader = True
