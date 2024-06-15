@@ -1,18 +1,21 @@
 import socket
 import threading
-import uuid
+import random
+import string
 import json
 
-my_uid = str(uuid.uuid1())
+my_uid = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
 my_ip = '127.0.0.1'
 ring_port = 10001
-participants = [('127.0.0.1', 10002), ('127.0.0.1', 10003)]  # Beispielteilnehmer
+participants = [('127.0.0.1', 10001)]  # Update with actual participant addresses
+leader_uid = None
 
 def send_election_message(recipient, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(json.dumps(message).encode(), recipient)
 
 def receive_messages():
+    global leader_uid
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((my_ip, ring_port))
 
@@ -22,7 +25,11 @@ def receive_messages():
         print(f"Received message: {message} from {addr}")
         
         if message['isLeader']:
-            print(f"Leader elected: {message['mid']}")
+            leader_uid = message['mid']
+            if leader_uid == my_uid:
+                print("I am the leader")
+            else:
+                print(f"The leader is {leader_uid}")
         else:
             handle_election_message(message)
 
