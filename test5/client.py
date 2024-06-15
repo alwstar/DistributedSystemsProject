@@ -27,7 +27,7 @@ def discover_server():
     global server_ip
     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('<broadcast>', 37020))
+    broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('192.168.178.255', 37020))
 
     broadcast_socket.settimeout(5)
     try:

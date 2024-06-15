@@ -29,7 +29,7 @@ def discover_other_servers():
     server_count = 1
     try:
         for i in range(5):
-            broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('<broadcast>', 37020))
+            broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('192.168.178.255', 37020))
             while True:
                 try:
                     data, addr = broadcast_socket.recvfrom(1024)
