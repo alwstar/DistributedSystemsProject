@@ -67,10 +67,12 @@ def election_listener():
     global is_leader, leader_uid
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((my_ip, ring_port))
+    print(f"Election listener started on {my_ip}:{ring_port}")
 
     while True:
         data, addr = sock.recvfrom(1024)
         message = json.loads(data.decode())
+        print(f"Election message received: {message} from {addr}")
         if message['isLeader']:
             leader_uid = message['mid']
             is_leader = (message['mid'] == my_uid)
@@ -122,6 +124,9 @@ def start_server():
     election_thread = threading.Thread(target=election_listener)
     election_thread.start()
 
+    heartbeat_listener_thread = threading.Thread(target=heartbeat_listener)
+    heartbeat_listener_thread.start()
+
     heartbeat_thread = threading.Thread(target=send_heartbeat)
     heartbeat_thread.start()
 
@@ -150,6 +155,7 @@ def send_heartbeat():
                 message = json.dumps({"type": "heartbeat"}).encode()
                 sock.sendto(message, (participant[0], participant[1] + 1))
         time.sleep(2)
+        print("Heartbeat sent")
 
 def check_heartbeats():
     global is_leader, leader_uid
@@ -170,10 +176,13 @@ def heartbeat_listener():
     global heartbeat_status
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((my_ip, ring_port + 1))  # Using a different port for heartbeat messages
+    print(f"Heartbeat listener started on {my_ip}:{ring_port + 1}")
+
     while True:
         data, addr = sock.recvfrom(1024)
         try:
             message = json.loads(data.decode())
+            print(f"Heartbeat message received from {addr}")
             if 'type' in message and message['type'] == 'heartbeat':
                 heartbeat_status[addr] = time.time()
         except (json.JSONDecodeError, KeyError):
