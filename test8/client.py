@@ -6,15 +6,13 @@ import threading
 import os
 
 from time import sleep
-from cluster import hosts, ports, send_multicast
-
+from cluster import hosts, ports  # Entfernen Sie die import-Anweisung für send_multicast, da es nicht benötigt wird
 
 # standardized for creating and starting Threads
 def new_thread(target, args):
     t = threading.Thread(target=target, args=args)
     t.daemon = True
     t.start()
-
 
 # function for sending messages to the Server
 def send_message():
@@ -30,13 +28,11 @@ def send_message():
             print(e)
             break
 
-
 # function for receiving messages from the Server
 def receive_message():
     global sock
 
     while True:
-
         try:
             data = sock.recv(hosts.buffer_size)
             print(data.decode(hosts.unicode))
@@ -55,7 +51,6 @@ def receive_message():
             print(e)
             break
 
-
 # function for creating Client socket and establishing connection to Server Leader
 def connect():
     global sock
@@ -64,25 +59,18 @@ def connect():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    # send a join request to Multicast Address for receiving the current Server Leader address
-    # if there is no response from the Server Leader, value False will be returned
-    server_exist = send_multicast.sending_join_chat_request_to_multicast()
+    # Manuelle Angabe der Server-IP-Adresse
+    leader_address = ('192.168.178.34', ports.server)  # Setzen Sie hier die Server-IP-Adresse direkt
+    print(f'This is the server leader: {leader_address}')
 
-    if server_exist:
-        # assign Server Leader address
-        leader_address = (hosts.leader, ports.server)
-        print(f'This is the server leader: {leader_address}')
-
-        # connect to Server Leader
+    try:
+        # Connect to Server Leader
         sock.connect(leader_address)
         sock.send('JOIN'.encode(hosts.unicode))
         print("You joined the Chat Room.\nYou can start chatting.")
-
-    # if there is no Server available, exit the script
-    else:
-        print("Please try to join later again.")
+    except Exception as e:
+        print(f"Connection to server failed: {e}")
         os._exit(0)
-
 
 # main Thread
 if __name__ == '__main__':
