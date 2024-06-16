@@ -7,7 +7,7 @@ from time import sleep
 import hosts
 import ports
 
-broadcast_address = ('192.168.178.255', ports.broadcast)
+broadcast_address = ('<broadcast>', ports.broadcast)
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
