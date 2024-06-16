@@ -1,78 +1,47 @@
+# Client Operations
+
 import socket
 import threading
-import json
-import time
+import os
+from time import sleep
+from config import *
 
-server_ip = None
-server_port = 9999
+def connect():
+    global sock
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    leader_address = (LEADER, SERVER_PORT)
+    try:
+        sock.connect(leader_address)
+        sock.send('JOIN'.encode(UNICODE))
+    except:
+        os._exit(0)
 
-def receive_messages(client_socket):
+def send_message():
+    global sock
+    while True:
+        message = input("")
+        try:
+            sock.send(message.encode(UNICODE))
+        except:
+            break
+
+def receive_message():
+    global sock
     while True:
         try:
-            message = client_socket.recv(1024)
-            if message:
-                print(f"\n{message.decode()}\n> ", end='')
-            else:
-                print("Disconnected from server.")
-                client_socket.close()
-                reconnect_to_leader()
-                break
+            data = sock.recv(BUFFER_SIZE)
+            print(data.decode(UNICODE))
+            if not data:
+                sock.close()
+                sleep(3)
+                connect()
         except:
-            print("An error occurred.")
-            client_socket.close()
-            reconnect_to_leader()
             break
 
-def discover_server():
-    global server_ip
-    broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    broadcast_socket.sendto("DISCOVER_SERVER".encode(), ('<broadcast>', 37020))
-
-    broadcast_socket.settimeout(5)
-    try:
-        data, addr = broadcast_socket.recvfrom(1024)
-        if data.decode() == "SERVER_HERE":
-            server_ip = addr[0]
-            return server_ip
-    except socket.timeout:
-        print("Server discovery timed out.")
-        return None
-
-def reconnect_to_leader():
+if __name__ == '__main__':
+    connect()
+    threading.Thread(target=send_message).start()
+    threading.Thread(target=receive_message).start()
     while True:
-        print("Attempting to reconnect to leader...")
-        if discover_server():
-            start_client()
-            break
-        else:
-            print("No leader found. Retrying in 5 seconds...")
-            time.sleep(5)
-
-def start_client():
-    global server_ip
-    if not server_ip:
-        server_ip = discover_server()
-        if not server_ip:
-            print("No server found.")
-            return
-
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((server_ip, server_port))
-
-    receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
-    receive_thread.start()
-
-    name = input("Please enter your name: ")
-    client_socket.send(name.encode())
-
-    while True:
-        message = input("> ")
-        if message.lower() == 'quit':
-            client_socket.close()
-            break
-        else:
-            client_socket.send(message.encode())
-
-if __name__ == "__main__":
-    start_client()
+        pass
