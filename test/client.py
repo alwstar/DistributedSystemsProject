@@ -1,103 +1,82 @@
-# this is a Client
-
-# import Modules
 import socket
-import threading
-import os
+import multicast_data
+import multicast_sender
+import ports
+import time
+import pickle
 
-from time import sleep
-from cluster import hosts, ports, send_multicast
+import thread_helper
 
+# listener to receive message sent from server to client over TCP
+def receive_mesage():
+    server_address = ('', ports.SERVER_CLIENT_MESSAGE_PORT)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(server_address)
+    sock.listen()
+    while True:
+        connection, leader_address = sock.accept()
+        message = pickle.loads(connection.recv(1024))
+        print(message)
 
-# standardized for creating and starting Threads
-def new_thread(target, args):
-    t = threading.Thread(target=target, args=args)
-    t.daemon = True
-    t.start()
-
-
-# function for sending messages to the Server
-def send_message():
-    global sock
+# listens on the global client_socket for leader availability
+def check_leader_abailability():
+    global client_socket
 
     while True:
-        message = input("")
-
         try:
-            sock.send(message.encode(hosts.unicode))
-
-        except Exception as e:
-            print(e)
-            break
-
-
-# function for receiving messages from the Server
-def receive_message():
-    global sock
-
-    while True:
-
-        try:
-            data = sock.recv(hosts.buffer_size)
-            print(data.decode(hosts.unicode))
-
-            # if connection to server is lost (in case of server crash)
+            data = client_socket.recv(1024)
+            print(data.decode('utf-8'))
             if not data:
                 print("\nChat server currently not available."
-                      "Please wait 3 seconds for reconnection with new server leader.")
-                sock.close()
-                sleep(3)
+                      "Please wait 5 seconds for reconnection with new server leader.")
+                client_socket.close()
+                time.sleep(5)
 
                 # Start reconnecting to new server leader
-                connect()
-
-        except Exception as e:
-            print(e)
+                connect_to_server()
+        except Exception as err:
+            print(err)
             break
+# disconnects from server and sends a message for disconnection
+def disconnect_from_server():
+    global client_socket
 
+    message = 'disconnected'
+    message = message.encode()
+    client_socket.send(message)
+    client_socket.close
 
-# function for creating Client socket and establishing connection to Server Leader
-def connect():
-    global sock
+# main function to connect to the leader server over TCP
+def connect_to_server():
+    global client_socket  # defined as global to be able to use in other functions like disconnect_from_server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    check_server_exist = multicast_sender.requestToJoinChat()
 
-    # creating TCP Socket for Client
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if check_server_exist:
+        leader_address = (multicast_data.LEADER, ports.SERVER_PORT_FOR_CLIENTS)
+        print(f'{leader_address}: Hi, welcome to the room let me connect you...')
 
-    # send a join request to Multicast Address for receiving the current Server Leader address
-    # if there is no response from the Server Leader, value False will be returned
-    server_exist = send_multicast.sending_join_chat_request_to_multicast()
-
-    if server_exist:
-        # assign Server Leader address
-        leader_address = (hosts.leader, ports.server)
-        print(f'This is the server leader: {leader_address}')
-
-        # connect to Server Leader
-        sock.connect(leader_address)
-        sock.send('JOIN'.encode(hosts.unicode))
-        print("You joined the Chat Room.\nYou can start chatting.")
-
-    # if there is no Server available, exit the script
+        client_socket.connect(leader_address)
+        client_socket.send('JOIN'.encode('utf-8'))
+        print(f'You can start chatting now!')
+        thread_helper.newThread(check_leader_abailability, ())
+        while True:
+            message = input("")
+            try:
+                client_socket.send(message.encode('utf-8'))
+            except Exception as err:
+                print(err)
+                break
     else:
-        print("Please try to join later again.")
-        os._exit(0)
+        print('Did not work trying again if possible.')
+        client_socket.close()
+    connect_to_server()  # tries to reconnect here
 
-
-# main Thread
 if __name__ == '__main__':
     try:
-        print("You try to join the chat room.")
-
-        # Connect to Server Leader
-        connect()
-
-        # Start Threads for sending and receiving messages from other chat participants
-        new_thread(send_message, ())
-        new_thread(receive_message, ())
-
-        while True:
-            pass
-
+        thread_helper.newThread(receive_mesage, ())
+        connect_to_server()
     except KeyboardInterrupt:
-        print("\nYou left the chatroom")
+        print('\n You left the chat.')
+        disconnect_from_server()
+
