@@ -12,7 +12,7 @@ buffer_size = 1024
 unicode = 'utf-8'
 
 # global IP variables
-broadcast = '<broadcast>'
+broadcast = '192.168.178.255'
 leader = ''
 neighbour = ''
 server_list = []

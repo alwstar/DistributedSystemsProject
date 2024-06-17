@@ -6,7 +6,7 @@ import pickle
 import hosts
 import ports
 
-broadcast_ip = '<broadcast>'
+broadcast_ip = '192.168.178.255'
 server_address = ('', ports.broadcast)
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
