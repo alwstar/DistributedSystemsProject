@@ -2,21 +2,24 @@ import multiprocessing
 import socket
 import os
 
-class Server(multiprocessing.Process):
-    def __init__(self, server_socket, received_data, client_address):
-        super(Server, self).__init__()
-        self.server_socket = server_socket
-        self.received_data = received_data
-        self.client_address = client_address
+def broadcast_listener(server_socket, server_address, server_port):
+    # Enable broadcast and reuse address options
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    # Override run method (check Python's multiprocessing documentation)
-    def run(self):
-        # Message to be sent to client
-        message = 'Hi ' + self.client_address[0] + ':' + str(self.client_address[1]) + '. This is server with process ID ' + str(os.getpid())
+    # Bind socket to server address and port
+    server_socket.bind((server_address, server_port))
+    print(f'Server up and running at {server_address}:{server_port}')
 
-        # Send message to client
-        self.server_socket.sendto(str.encode(message), self.client_address)
-        print('Sent to client: ', message)
+    while True:
+        # Receive broadcast message from client
+        data, address = server_socket.recvfrom(1024)
+        print(f'Received broadcast message "{data.decode()}" from {address[0]}:{address[1]}')
+
+        # Send reply to client with server address and port
+        reply_message = f'{server_address}:{server_port}'
+        server_socket.sendto(str.encode(reply_message), address)
+        print(f'Sent reply "{reply_message}" to {address[0]}:{address[1]}')
 
 if __name__ == "__main__":
     # Create a UDP socket
@@ -24,22 +27,7 @@ if __name__ == "__main__":
 
     # Server application IP address and port
     server_address = '127.0.0.1'
-    server_port = 10002
+    server_port = 10001
 
-    # Buffer size
-    buffer_size = 1024
-
-    # Bind socket to address and port
-    server_socket.bind((server_address, server_port))
-    print('Server up and running at {}:{}'.format(server_address, server_port))
-
-    while True:
-        # Receive message from client
-        data, address = server_socket.recvfrom(buffer_size)
-        print('Received message \'{}\' at {}:{}'.format(data.decode(), address[0], address[1]))
-
-        # Create a server process
-        p = Server(server_socket, data, address)
-        p.start()
-        p.join()
-
+    # Start broadcast listener
+    broadcast_listener(server_socket, server_address, server_port)
