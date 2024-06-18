@@ -1,23 +1,29 @@
 import socket
 import struct
-import pickle
-import time
-
-from time import sleep
 
 import server_data
+import ports
 import multicast_data
+import pickle
+from time import sleep
 
-broadcast_address = ('192.168.79.255', multicast_data.MCAST_PORT)
+import pickle
+
+# global variable definitions for multicast sender
+multicastAddress = (multicast_data.MCAST_GRP, multicast_data.MCAST_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 sock.settimeout(1)
+ttl = struct.pack('b', 1)
+sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
+
+
+# will be sent when a new connection applied and established
 def requestToMulticast():
     sleep(1)
     message = pickle.dumps([multicast_data.SERVER_LIST, multicast_data.LEADER])
-    sock.sendto(message, broadcast_address)
-    print(f'\nBroadcast sending data to receivers from {server_data.SERVER_IP} to {broadcast_address}')
+    sock.sendto(message, multicastAddress)
+    print(f'\nMulticast sending data to receivers from {server_data.SERVER_IP} to {multicastAddress}')
 
     try:
         sock.recvfrom(1024)
@@ -28,9 +34,11 @@ def requestToMulticast():
         print(f'{server_data.SERVER_IP}: Currently no receiver reachable')
         return False
 
+# sent by clients join requests
 def requestToJoinChat():
+
     message = pickle.dumps(['JOIN', '', '', ''])
-    sock.sendto(message, broadcast_address)
+    sock.sendto(message, multicastAddress)
     sleep(0.5)
     try:
         data, address = sock.recvfrom(1024)

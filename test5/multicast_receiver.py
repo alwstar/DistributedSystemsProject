@@ -6,14 +6,26 @@ import multicast_data
 import server
 import server_data
 
-broadcast_address = ('', multicast_data.MCAST_PORT)
+# global multicast variable
+multicastIP = multicast_data.MCAST_GRP
+
+# global server address variable
+serverAddress = ('', multicast_data.MCAST_PORT)
+
+# global UDP Socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+# helper function to simplify pickle reader
 def pickle_load_reader(data, pos):
     return pickle.loads(data)[pos]
 
+# starts the multicast receiver
 def start_receiver():
-    sock.bind(broadcast_address)
+    sock.bind(serverAddress)
+
+    group = socket.inet_aton(multicastIP)
+    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
     print(f'\n{server_data.SERVER_IP}: Started UDP Socket to listen on Port {multicast_data.MCAST_PORT}')
 
@@ -23,6 +35,7 @@ def start_receiver():
             if address[0] != server_data.SERVER_IP:
                 print(f'{server_data.SERVER_IP}: Received data from {address} \n')
 
+            # for client connections
             if multicast_data.LEADER == server_data.SERVER_IP and pickle.loads(data)[0] == 'JOIN':
                 multicast_data.CLIENT_LIST.append(address[0]) if address[
                                                                      0] not in multicast_data.CLIENT_LIST else multicast_data.CLIENT_LIST
@@ -31,6 +44,7 @@ def start_receiver():
                 server.send_client_list()
                 print(f'{server_data.SERVER_IP}: "{address}" wants to join the Chat Room\n')
 
+            # for replica connections
             if len(pickle_load_reader(data, 0)) == 0:
                 multicast_data.SERVER_LIST.append(address[0]) if address[0] not in multicast_data.SERVER_LIST else multicast_data.SERVER_LIST
                 print(f'{server_data.SERVER_IP}: replica server joined {address}')
@@ -48,3 +62,5 @@ def start_receiver():
         except KeyboardInterrupt:
             socket.close()
             print(f'{server_data.SERVER_IP}: Closing Socket')
+
+
