@@ -40,20 +40,21 @@ def send_clients():
                 hosts.client_list.remove(member)
 
 def client_handler(client, address):
-    while True:
-        try:
+    try:
+        while True:
             data = client.recv(hosts.buffer_size)
             if not data:
-                print(f'{address} disconnected')
-                FIFO.put(f'\n{address} disconnected\n')
-                hosts.client_list.remove(client)
-                client.close()
                 break
             FIFO.put(f'{address} said: {data.decode(hosts.unicode)}')
             print(f'Message from {address} ==> {data.decode(hosts.unicode)}')
-        except Exception as e:
-            print(e)
-            break
+    except Exception as e:
+        print(f'Error: {e}', file=sys.stderr)
+    finally:
+        print(f'{address} disconnected')
+        FIFO.put(f'\n{address} disconnected\n')
+        if client in hosts.client_list:
+            hosts.client_list.remove(client)
+        client.close()
 
 def start_binding():
     sock.bind(host_address)
@@ -62,15 +63,12 @@ def start_binding():
     while True:
         try:
             client, address = sock.accept()
-            data = client.recv(hosts.buffer_size)
-            if data:
-                print(f'{address} connected')
-                FIFO.put(f'\n{address} connected\n')
-                hosts.client_list.append(client)
-                new_thread(client_handler, (client, address))
+            print(f'{address} connected')
+            FIFO.put(f'\n{address} connected\n')
+            hosts.client_list.append(client)
+            new_thread(client_handler, (client, address))
         except Exception as e:
-            print(e)
-            break
+            print(f'Error: {e}', file=sys.stderr)
 
 if __name__ == '__main__':
     broadcast_receiver_exist = send_broadcast.sending_request_to_broadcast()

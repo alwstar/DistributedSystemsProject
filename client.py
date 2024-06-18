@@ -28,15 +28,14 @@ def receive_message():
     while True:
         try:
             data = sock.recv(hosts.buffer_size)
-            print(data.decode(hosts.unicode))
             if not data:
-                print("\nChat server currently not available. Please wait 3 seconds for reconnection with new server leader.")
-                sock.close()
-                sleep(3)
-                connect()
+                raise Exception("Server disconnected")
+            print(data.decode(hosts.unicode))
         except Exception as e:
             print(e)
-            break
+            sock.close()
+            sleep(3)
+            connect()
 
 def connect():
     global sock
