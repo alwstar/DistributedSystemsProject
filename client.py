@@ -42,17 +42,23 @@ def connect():
     global sock
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_exist = send_broadcast.sending_join_chat_request_to_broadcast()
+    
+    while True:
+        server_exist = send_broadcast.sending_join_chat_request_to_broadcast()
 
-    if server_exist:
-        leader_address = (hosts.leader, ports.server)
-        print(f'This is the server leader: {leader_address}')
-        sock.connect(leader_address)
-        sock.send('JOIN'.encode(hosts.unicode))
-        print("You joined the Chat Room.\nYou can start chatting.")
-    else:
-        print("Please try to join later again.")
-        os._exit(0)
+        if server_exist:
+            try:
+                leader_address = (hosts.leader, ports.server)
+                print(f'This is the server leader: {leader_address}')
+                sock.connect(leader_address)
+                sock.send('JOIN'.encode(hosts.unicode))
+                print("You joined the Chat Room.\nYou can start chatting.")
+                return
+            except Exception as e:
+                print(f"Failed to connect to the server leader: {e}")
+        
+        print("Retrying to join the chat room in 3 seconds...")
+        sleep(3)
 
 if __name__ == '__main__':
     try:

@@ -5,7 +5,7 @@ import sys
 import pickle
 import hosts
 import ports
-import hosts
+import leader_election
 
 broadcast_ip = hosts.broadcast
 server_address = ('', ports.broadcast)
@@ -43,3 +43,6 @@ def starting_broadcast_receiver():
 
         except KeyboardInterrupt:
             print(f'[BROADCAST RECEIVER {hosts.myIP}] Closing UDP Socket', file=sys.stderr)
+        finally:
+            if hosts.leader_crashed:
+                leader_election.start_leader_election()

@@ -1,7 +1,9 @@
 # leader_election.py
 
 import socket
+import json
 import hosts
+import ports
 
 def form_ring(members):
     sorted_binary_ring = sorted([socket.inet_aton(member) for member in members])
@@ -24,7 +26,44 @@ def get_neighbour(members, current_member_ip, direction='left'):
     else:
         return None
 
-def start_leader_election(server_list, leader_server):
-    ring = form_ring(server_list)
-    neighbour = get_neighbour(ring, leader_server, 'right')
-    return neighbour if neighbour != hosts.myIP else None
+def start_leader_election():
+    ring = form_ring(hosts.server_list)
+    neighbour = get_neighbour(ring, hosts.myIP, 'right')
+
+    election_message = {
+        "mid": hosts.myIP,
+        "isLeader": False
+    }
+    hosts.participant = True
+    send_election_message(neighbour, election_message)
+
+def send_election_message(neighbour, message):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    message = json.dumps(message).encode(hosts.unicode)
+    sock.sendto(message, (neighbour, ports.server))
+    sock.close()
+
+def receive_election_message():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((hosts.myIP, ports.server))
+
+    while True:
+        data, address = sock.recvfrom(hosts.buffer_size)
+        election_message = json.loads(data.decode(hosts.unicode))
+
+        if election_message['isLeader']:
+            hosts.leader = election_message['mid']
+            hosts.participant = False
+            print(f"New Leader elected: {hosts.leader}")
+        elif election_message['mid'] == hosts.myIP:
+            election_message['isLeader'] = True
+            send_election_message(get_neighbour(hosts.server_list, hosts.myIP, 'right'), election_message)
+        elif election_message['mid'] < hosts.myIP and not hosts.participant:
+            election_message = {
+                "mid": hosts.myIP,
+                "isLeader": False
+            }
+            hosts.participant = True
+            send_election_message(get_neighbour(hosts.server_list, hosts.myIP, 'right'), election_message)
+        elif election_message['mid'] > hosts.myIP:
+            send_election_message(get_neighbour(hosts.server_list, hosts.myIP, 'right'), election_message)
