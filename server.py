@@ -33,7 +33,11 @@ def send_clients():
         message += '\n' if not FIFO.empty() else ''
     if message:
         for member in hosts.client_list:
-            member.send(message.encode(hosts.unicode))
+            try:
+                member.send(message.encode(hosts.unicode))
+            except Exception as e:
+                print(f'Error sending message to client: {e}', file=sys.stderr)
+                hosts.client_list.remove(member)
 
 def client_handler(client, address):
     while True:
@@ -80,7 +84,7 @@ if __name__ == '__main__':
 
     while True:
         try:
-            if hosts.leader == hosts.myIP and hosts.network_changed or hosts.replica_crashed:
+            if hosts.leader == hosts.myIP and (hosts.network_changed or hosts.replica_crashed):
                 if hosts.leader_crashed:
                     hosts.client_list = []
                 send_broadcast.sending_request_to_broadcast()
