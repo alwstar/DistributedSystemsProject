@@ -13,7 +13,7 @@ def start_heartbeat():
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.settimeout(0.5)
 
-        hosts.neighbour = leader_election.get_neighbour(hosts.server_list, hosts.myIP, 'right')
+        hosts.neighbour = leader_election.start_leader_election(hosts.server_list, hosts.myIP)
         host_address = (hosts.neighbour, ports.server)
 
         if hosts.neighbour:
@@ -28,11 +28,11 @@ def start_heartbeat():
                 if hosts.leader == hosts.neighbour:
                     print(f'[HEARTBEAT] Server Leader {hosts.neighbour} crashed', file=sys.stderr)
                     hosts.leader_crashed = True
-                    hosts.leader = ''
-                    leader_election.start_leader_election()
+                    hosts.leader = hosts.myIP
+                    hosts.network_changed = True
                 else:
                     print(f'[HEARTBEAT] Server Replica {hosts.neighbour} crashed', file=sys.stderr)
-                    hosts.replica_crashed = True
+                    hosts.replica_crashed = 'True'
 
             finally:
                 sock.close()
