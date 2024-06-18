@@ -46,9 +46,13 @@ def connect():
     if server_exist:
         leader_address = (hosts.leader, ports.server)
         print(f'This is the server leader: {leader_address}')
-        sock.connect(leader_address)
-        sock.send('JOIN'.encode(hosts.unicode))
-        print("You joined the Chat Room.\nYou can start chatting.")
+        try:
+            sock.connect(leader_address)
+            sock.send('JOIN'.encode(hosts.unicode))
+            print("You joined the Chat Room.\nYou can start chatting.")
+        except Exception as e:
+            print(f"Failed to connect to server leader: {e}")
+            os._exit(0)
     else:
         print("Please try to join later again.")
         os._exit(0)

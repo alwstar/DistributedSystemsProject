@@ -37,7 +37,8 @@ def send_clients():
                 member.send(message.encode(hosts.unicode))
             except Exception as e:
                 print(f'Error sending message to client: {e}', file=sys.stderr)
-                hosts.client_list.remove(member)
+                if member in hosts.client_list:
+                    hosts.client_list.remove(member)
 
 def client_handler(client, address):
     try:
