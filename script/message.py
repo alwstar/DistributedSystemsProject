@@ -1,0 +1,1 @@
+election_message = {"mid": UID, "isLeader": False}
