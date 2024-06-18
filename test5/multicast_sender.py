@@ -1,7 +1,9 @@
 import socket
 import struct
 import pickle
-from time to sleep
+import time
+
+from time import sleep
 
 import server_data
 import multicast_data
