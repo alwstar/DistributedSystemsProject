@@ -21,7 +21,7 @@ def printer():
           f'\n[SERVER] Client List: {hosts.client_list}'
           f'\n[SERVER] Neighbour ==> {hosts.neighbour}\n')
 
-def new_thread(target, args):
+def new_thread(target, args=()):
     t = threading.Thread(target=target, args=args)
     t.daemon = True
     t.start()
@@ -32,8 +32,12 @@ def send_clients():
         message += f'{FIFO.get()}'
         message += '\n' if not FIFO.empty() else ''
     if message:
-        for member in hosts.client_list:
-            member.send(message.encode(hosts.unicode))
+        for client in [c for c in hosts.client_list if isinstance(c, socket.socket)]:
+            try:
+                client.send(message.encode(hosts.unicode))
+            except Exception as e:
+                print(f"Failed to send message to client: {e}")
+                hosts.client_list.remove(client)
 
 def client_handler(client, address):
     while True:
@@ -74,13 +78,13 @@ if __name__ == '__main__':
         hosts.server_list.append(hosts.myIP)
         hosts.leader = hosts.myIP
 
-    new_thread(receive_broadcast.starting_broadcast_receiver, ())
-    new_thread(start_binding, ())
-    new_thread(heartbeat.start_heartbeat, ())
+    new_thread(receive_broadcast.starting_broadcast_receiver)
+    new_thread(start_binding)
+    new_thread(heartbeat.start_heartbeat)
 
     while True:
         try:
-            if hosts.leader == hosts.myIP and hosts.network_changed or hosts.replica_crashed:
+            if hosts.leader == hosts.myIP and (hosts.network_changed or hosts.replica_crashed):
                 if hosts.leader_crashed:
                     hosts.client_list = []
                 send_broadcast.sending_request_to_broadcast()

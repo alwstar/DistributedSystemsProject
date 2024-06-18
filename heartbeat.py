@@ -29,7 +29,6 @@ def start_heartbeat():
                     print(f'[HEARTBEAT] Server Leader {hosts.neighbour} crashed', file=sys.stderr)
                     hosts.leader_crashed = True
                     hosts.leader = ''
-                    hosts.network_changed = True
                     leader_election.start_leader_election()
                 else:
                     print(f'[HEARTBEAT] Server Replica {hosts.neighbour} crashed', file=sys.stderr)
