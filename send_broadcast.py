@@ -40,14 +40,3 @@ def sending_join_chat_request_to_broadcast():
     except socket.timeout:
         print(f'[BROADCAST SENDER {hosts.myIP}] Broadcast Receiver not detected -> Chat Server is offline.', file=sys.stderr)
         return False
-
-def announce_new_leader(new_leader):
-    print(f'\n[BROADCAST SENDER {hosts.myIP}] Announcing new leader {new_leader} to Broadcast Address {broadcast_address}', file=sys.stderr)
-    message = pickle.dumps(['NEW_LEADER', new_leader])
-    sock.sendto(message, broadcast_address)
-
-    try:
-        sock.recvfrom(hosts.buffer_size)
-        print(f'[BROADCAST SENDER {hosts.myIP}] New leader announced successfully\n', file=sys.stderr)
-    except socket.timeout:
-        print(f'[BROADCAST SENDER {hosts.myIP}] Broadcast Receiver not detected for new leader announcement', file=sys.stderr)

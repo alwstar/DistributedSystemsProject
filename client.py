@@ -28,14 +28,15 @@ def receive_message():
     while True:
         try:
             data = sock.recv(hosts.buffer_size)
-            if not data:
-                raise Exception("Server disconnected")
             print(data.decode(hosts.unicode))
+            if not data:
+                print("\nChat server currently not available. Please wait 3 seconds for reconnection with new server leader.")
+                sock.close()
+                sleep(3)
+                connect()
         except Exception as e:
             print(e)
-            sock.close()
-            sleep(3)
-            connect()
+            break
 
 def connect():
     global sock
@@ -46,13 +47,9 @@ def connect():
     if server_exist:
         leader_address = (hosts.leader, ports.server)
         print(f'This is the server leader: {leader_address}')
-        try:
-            sock.connect(leader_address)
-            sock.send('JOIN'.encode(hosts.unicode))
-            print("You joined the Chat Room.\nYou can start chatting.")
-        except Exception as e:
-            print(f"Failed to connect to server leader: {e}")
-            os._exit(0)
+        sock.connect(leader_address)
+        sock.send('JOIN'.encode(hosts.unicode))
+        print("You joined the Chat Room.\nYou can start chatting.")
     else:
         print("Please try to join later again.")
         os._exit(0)

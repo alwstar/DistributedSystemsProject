@@ -2,7 +2,6 @@
 
 import socket
 import hosts
-import send_broadcast
 
 def form_ring(members):
     sorted_binary_ring = sorted([socket.inet_aton(member) for member in members])
@@ -28,8 +27,4 @@ def get_neighbour(members, current_member_ip, direction='left'):
 def start_leader_election(server_list, leader_server):
     ring = form_ring(server_list)
     neighbour = get_neighbour(ring, leader_server, 'right')
-    new_leader = neighbour if neighbour != hosts.myIP else None
-    if new_leader:
-        hosts.leader = new_leader
-        send_broadcast.announce_new_leader(new_leader)
-    return new_leader
+    return neighbour if neighbour != hosts.myIP else None

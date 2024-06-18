@@ -5,6 +5,7 @@ import sys
 import pickle
 import hosts
 import ports
+import hosts
 
 broadcast_ip = hosts.broadcast
 server_address = ('', ports.broadcast)
@@ -21,26 +22,20 @@ def starting_broadcast_receiver():
             data, address = sock.recvfrom(hosts.buffer_size)
             print(f'\n[BROADCAST RECEIVER {hosts.myIP}] Received data from {address}\n', file=sys.stderr)
 
-            data = pickle.loads(data)
-            if data[0] == 'JOIN':
-                if hosts.leader == hosts.myIP:
-                    message = pickle.dumps([hosts.leader, ''])
-                    sock.sendto(message, address)
-                    print(f'[BROADCAST RECEIVER {hosts.myIP}] Client {address} wants to join the Chat Room\n', file=sys.stderr)
+            if hosts.leader == hosts.myIP and pickle.loads(data)[0] == 'JOIN':
+                message = pickle.dumps([hosts.leader, ''])
+                sock.sendto(message, address)
+                print(f'[BROADCAST RECEIVER {hosts.myIP}] Client {address} wants to join the Chat Room\n', file=sys.stderr)
 
-            elif data[0] == 'NEW_LEADER':
-                hosts.leader = data[1]
-                print(f'[BROADCAST RECEIVER {hosts.myIP}] New Leader is {hosts.leader}\n', file=sys.stderr)
-
-            elif len(data[0]) == 0:
+            if len(pickle.loads(data)[0]) == 0:
                 hosts.server_list.append(address[0]) if address[0] not in hosts.server_list else hosts.server_list
                 sock.sendto('ack'.encode(hosts.unicode), address)
                 hosts.network_changed = True
 
-            else:
-                hosts.server_list = data[0]
-                hosts.leader = data[1]
-                hosts.client_list = data[4]
+            elif pickle.loads(data)[1] and hosts.leader != hosts.myIP or pickle.loads(data)[3]:
+                hosts.server_list = pickle.loads(data)[0]
+                hosts.leader = pickle.loads(data)[1]
+                hosts.client_list = pickle.loads(data)[4]
                 print(f'[BROADCAST RECEIVER {hosts.myIP}] All Data have been updated', file=sys.stderr)
 
                 sock.sendto('ack'.encode(hosts.unicode), address)

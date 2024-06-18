@@ -6,7 +6,6 @@ from time import sleep
 import hosts
 import ports
 import leader_election
-import send_broadcast
 
 def start_heartbeat():
     while True:
@@ -29,9 +28,8 @@ def start_heartbeat():
                 if hosts.leader == hosts.neighbour:
                     print(f'[HEARTBEAT] Server Leader {hosts.neighbour} crashed', file=sys.stderr)
                     hosts.leader_crashed = True
-                    hosts.leader = leader_election.start_leader_election(hosts.server_list, hosts.myIP)
+                    hosts.leader = hosts.myIP
                     hosts.network_changed = True
-                    send_broadcast.announce_new_leader(hosts.leader)
                 else:
                     print(f'[HEARTBEAT] Server Replica {hosts.neighbour} crashed', file=sys.stderr)
                     hosts.replica_crashed = 'True'
