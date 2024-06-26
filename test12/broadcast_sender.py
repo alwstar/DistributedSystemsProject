@@ -1,12 +1,9 @@
-# broadcast_sender.py
 import socket
-import struct
-
-import server_data
-import ports
-import broadcast_data
 import pickle
 from time import sleep
+from . import server_data
+from . import ports
+from . import broadcast_data
 
 # global variable definitions for broadcast sender
 broadcastAddress = (broadcast_data.BCAST_GRP, broadcast_data.BCAST_PORT)

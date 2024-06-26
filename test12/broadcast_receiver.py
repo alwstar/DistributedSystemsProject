@@ -1,11 +1,8 @@
-# broadcast_receiver.py
 import pickle
 import socket
-import struct
-
-import broadcast_data
-import server
-import server_data
+from . import broadcast_data
+from . import server
+from . import server_data
 
 # global broadcast variable
 broadcastIP = broadcast_data.BCAST_GRP

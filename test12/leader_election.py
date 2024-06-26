@@ -5,11 +5,10 @@ import threading
 import socket
 import pickle #is needed so send objects (tuple,list) through tcp
 import logging
-
-import broadcast_data
-import ports
-import server_data
-from server import *
+from . import broadcast_data
+from . import ports
+from . import server_data
+from .server import *
 
 neighbour = ''
 # Sorted Ip

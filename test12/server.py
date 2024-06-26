@@ -1,18 +1,16 @@
 import pickle
 import socket
 import sys
-
-import heartbeat
-import leader_election
-import broadcast_data
-import broadcast_receiver
-import broadcast_sender
-import ports
-import server_data
 import logging
 from time import sleep
-
-import thread_helper
+from . import heartbeat
+from . import leader_election
+from . import broadcast_data
+from . import broadcast_receiver
+from . import broadcast_sender
+from . import ports
+from . import server_data
+from . import thread_helper
 
 #logger configuration
 logging.basicConfig(filename='server.log', level=logging.INFO, format='%(asctime)s:%(name)s:%(message)s')

@@ -1,11 +1,10 @@
 import socket
-import broadcast_data
-import broadcast_sender
-import ports
 import time
 import pickle
-
-import thread_helper
+from . import broadcast_data
+from . import broadcast_sender
+from . import ports
+from . import thread_helper
 
 # listener to receive message sent from server to client over TCP
 def receive_mesage():
