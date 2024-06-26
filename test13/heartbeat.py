@@ -6,6 +6,7 @@ import server_data
 import ports
 import thread_helper
 import leader_election
+from server import update_server_list  # Importing the update_server_list function
 
 def start_heartbeat():
     msg = "Heartbeat"
@@ -37,7 +38,7 @@ def handle_server_failure(ip):
             logging.info('Leader crash detected')
             server_data.LEADER_CRASH = True
             server_data.LEADER_AVAILABLE = False
-        server.update_server_list(multicast_data.SERVER_LIST)
+        update_server_list(multicast_data.SERVER_LIST)  # Corrected the function call
 
 def listen_heartbeat():
     server_address = ('', ports.HEARTBEAT_PORT)
@@ -59,7 +60,7 @@ def restart_heartbeat():
             server_data.LEADER_CRASH = False
             leader_election.start_leader_election(multicast_data.SERVER_LIST, server_data.SERVER_IP)
         server_data.HEARTBEAT_RUNNING = True
-        thread_helper.newThread(start_heartbeat, ())
+        thread_helper.new_thread(start_heartbeat, ())
 
 if __name__ == '__main__':
     start_heartbeat()
