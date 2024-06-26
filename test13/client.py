@@ -39,23 +39,28 @@ def disconnect_from_server():
 def connect_to_server():
     global client_socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Attempting to join the chat via multicast...")
     if multicast_sender.request_to_join_chat():
         leader_address = (multicast_data.LEADER, ports.SERVER_PORT_FOR_CLIENTS)
         print(f'Connecting to leader at {leader_address}...')
-        client_socket.connect(leader_address)
-        client_socket.send(b'JOIN')
-        print('Connected. Start chatting!')
-        thread_helper.new_thread(check_leader_availability, ())
-        while True:
-            message = input()
-            try:
-                client_socket.send(message.encode('utf-8'))
-            except Exception as err:
-                print(err)
-                break
+        try:
+            client_socket.connect(leader_address)
+            client_socket.send(b'JOIN')
+            print('Connected. Start chatting!')
+            thread_helper.new_thread(check_leader_availability, ())
+            while True:
+                message = input()
+                try:
+                    client_socket.send(message.encode('utf-8'))
+                except Exception as err:
+                    print(err)
+                    break
+        except Exception as e:
+            print(f"Failed to connect to leader at {leader_address}: {e}")
     else:
         print('Connection failed. Retrying...')
         client_socket.close()
+        time.sleep(5)
         connect_to_server()
 
 if __name__ == '__main__':

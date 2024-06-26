@@ -30,12 +30,15 @@ def request_to_multicast():
     return send_multicast(data)
 
 def request_to_join_chat():
+    print("Sending join request to multicast group...")
     data = ['JOIN', '', '', '']
     sock.sendto(pickle.dumps(data), MULTICAST_ADDRESS)
     sleep(0.5)
     try:
         data, address = sock.recvfrom(1024)
         multicast_data.LEADER = pickle.loads(data)[0]
+        print(f"Join request acknowledged by leader at {multicast_data.LEADER}")
         return True
     except socket.timeout:
+        print("Join request timed out, no response from leader.")
         return False
