@@ -2,7 +2,6 @@ import pickle
 import socket
 import sys
 import logging
-#from time to sleep
 from time import sleep
 import heartbeat
 import leader_election
@@ -93,7 +92,7 @@ def start_server():
         print('Server is waiting for client connections...')
         while True:
             client, address = server_socket.accept()
-            thread_helper.newThread(handle_client_message, (client, address))
+            thread_helper.new_thread(handle_client_message, (client, address))
 
 def update_server_list(new_list):
     if not multicast_data.SERVER_LIST:
@@ -103,30 +102,30 @@ def update_server_list(new_list):
     elif server_data.HEARTBEAT_COUNT == 0:
         server_data.HEARTBEAT_COUNT += 1
         multicast_data.SERVER_LIST = list(set(new_list))
-        thread_helper.newThread(heartbeat.start_heartbeat, ())
+        thread_helper.new_thread(heartbeat.start_heartbeat, ())
     else:
         multicast_data.SERVER_LIST = list(set(new_list))
         server_data.isReplicaUpdated = True
 
 if __name__ == '__main__':
-    if not multicast_sender.requestToMulticast():
+    if not multicast_sender.request_to_multicast():  # Corrected function call
         multicast_data.LEADER = server_data.SERVER_IP
         server_data.LEADER_CRASH = False
         server_data.LEADER_AVAILABLE = True
 
-    thread_helper.newThread(multicast_receiver.start_receiver, ())
-    thread_helper.newThread(start_server, ())
-    thread_helper.newThread(receive_data, (ports.SERVERLIST_UPDATE_PORT, handle_server_list_data))
-    thread_helper.newThread(receive_data, (ports.LEADER_NOTIFICATION_PORT, handle_leader_data))
-    thread_helper.newThread(receive_data, (ports.CLIENT_LIST_UPDATE_PORT, handle_client_list_data))
-    thread_helper.newThread(heartbeat.listen_heartbeat, ())
-    thread_helper.newThread(leader_election.listenforNewLeaderMessage, ())
-    thread_helper.newThread(leader_election.receive_election_message, ())
+    thread_helper.new_thread(multicast_receiver.start_receiver, ())
+    thread_helper.new_thread(start_server, ())
+    thread_helper.new_thread(receive_data, (ports.SERVERLIST_UPDATE_PORT, handle_server_list_data))
+    thread_helper.new_thread(receive_data, (ports.LEADER_NOTIFICATION_PORT, handle_leader_data))
+    thread_helper.new_thread(receive_data, (ports.CLIENT_LIST_UPDATE_PORT, handle_client_list_data))
+    thread_helper.new_thread(heartbeat.listen_heartbeat, ())
+    thread_helper.new_thread(leader_election.listen_for_new_leader_message, ())
+    thread_helper.new_thread(leader_election.receive_election_message, ())
 
     while True:
         try:
             if multicast_data.LEADER and multicast_data.network_state:
-                multicast_sender.requestToMulticast()
+                multicast_sender.request_to_multicast()  # Corrected function call
                 multicast_data.network_state = False
         except KeyboardInterrupt:
             print(f'\nClosing Server for IP {server_data.SERVER_IP} on PORT {ports.SERVER_PORT_FOR_CLIENTS}')
