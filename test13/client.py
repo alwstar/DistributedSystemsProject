@@ -45,7 +45,7 @@ def connect_to_server():
         client_socket.connect(leader_address)
         client_socket.send(b'JOIN')
         print('Connected. Start chatting!')
-        thread_helper.newThread(check_leader_availability, ())
+        thread_helper.new_thread(check_leader_availability, ())
         while True:
             message = input()
             try:
@@ -60,7 +60,7 @@ def connect_to_server():
 
 if __name__ == '__main__':
     try:
-        thread_helper.newThread(receive_message, ())
+        thread_helper.new_thread(receive_message, ())
         connect_to_server()
     except KeyboardInterrupt:
         print('\nYou left the chat.')
