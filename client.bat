@@ -1,0 +1,1 @@
+start cmd /k "cd /d C:\git\DistributedSystemsProject && python client.py"
