@@ -1,154 +1,133 @@
-# Import all relevant libraries
 import socket
 import threading
-import sys
-import time
 import json
+import time
+import sys
 
-# Constants
-SERVER_UDP_PORT = 5000
-SERVER_TCP_PORT = 6000
 BUFFER_SIZE = 1024
+UDP_PORT = 5000  # This should match the UDP_PORT in the server code
 
-# Global shutdown event
-shutdown_event = threading.Event()
+class Client:
+    def __init__(self):
+        self.server_address = None
+        self.socket = None
+        self.running = True
 
-# Discover the server using UDP broadcast
-def discover_server():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        udp_socket.bind(('', SERVER_UDP_PORT))
+    def discover_server(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            udp_socket.settimeout(5)  # Set a timeout for receiving responses
 
-        while True:
-            message, server_addr = udp_socket.recvfrom(BUFFER_SIZE)
-            # Extracts the IP address from server_addr and the port from the message
-            server_ip = server_addr[0]
-            _, server_tcp_port = message.decode().split(':')
-            print(f"Discovered server at {server_ip} on port {server_tcp_port}")
-            return server_ip, int(server_tcp_port)
+            discovery_message = json.dumps({"type": "DISCOVER"}).encode()
+            
+            print("Discovering servers...")
+            attempts = 0
+            while attempts < 3:  # Try 3 times before giving up
+                try:
+                    udp_socket.sendto(discovery_message, ('192.168.178.255', UDP_PORT))
+                    while True:
+                        try:
+                            data, server = udp_socket.recvfrom(BUFFER_SIZE)
+                            response = json.loads(data.decode())
+                            if response['type'] == 'SERVER_ANNOUNCE':
+                                print(f"Discovered server: {response['id']}")
+                                return (server[0], response['tcp_port'])
+                        except socket.timeout:
+                            break
+                except Exception as e:
+                    print(f"Error during discovery: {e}")
+                attempts += 1
+                time.sleep(2)  # Wait before next attempt
+            
+            print("No servers discovered.")
+            return None
 
-# Function to send messages to another client via the server
-def send_message_to_client(tcp_socket, target_client_addr, sender_addr, message):
-    try:
-        # Include sender's address in the message
-        data = f"{target_client_addr}:{sender_addr}:{message}".encode()
-        tcp_socket.send(data)
-    except ConnectionError:
-        print("Lost connection to the server.")
-        tcp_socket.close()
+    def connect_to_server(self, server_address=None):
+        if server_address is None:
+            server_address = self.discover_server()
+            if server_address is None:
+                return False
 
-# Function to send election messages
-def send_election_message(tcp_socket, message):
-    try:
-        tcp_socket.send(json.dumps(message).encode())
-    except Exception as e:
-        print(f"Error sending election message: {e}")
-
-# Function to handle incoming election messages
-def handle_election_message(tcp_socket, election_message):
-    global my_uid
-    if election_message['uid'] < my_uid:
-        # If received UID is less than my UID, start a new election with my UID
-        send_election_message(tcp_socket, {"uid": my_uid, "isLeader": False})
-    elif election_message['uid'] > my_uid:
-        # If received UID is greater, forward the message
-        send_election_message(tcp_socket, election_message)
-    else:
-        # If received UID is equal to my UID, I am the leader
-        print("I am the leader")
-        send_election_message(tcp_socket, {"uid": my_uid, "isLeader": True})
-
-# Function to handle incoming messages from the server
-# Client-side function to handle incoming messages
-def receive_messages(tcp_socket):
-    while not shutdown_event.is_set():
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            message = tcp_socket.recv(BUFFER_SIZE)
-            if not message:
-                break
-
-            # Handling leader announcement
-            try:
-                leader_message = json.loads(message.decode())
-                if 'isLeader' in leader_message and leader_message['isLeader']:
-                    print(f"New leader is {leader_message['leader']}")
-                    continue
-            except json.JSONDecodeError:
-                pass  # Not a leader message, proceed with normal message handling
-
-            print(f"Received message: {message.decode()}")
-
-        except (ConnectionError, OSError) as e:
-            print("Socket error or lost connection:", e)
-            break
-
-
-# Function to rediscover the server and reconnect
-def rediscover_and_connect():
-    print("Attempting to rediscover available servers...")
-    for attempt in range(5):  # Retry up to 5 times
-        try:
-            server_ip, server_tcp_port = discover_server()
-            print("Trying to connect to server IP:", server_ip, "Port:", server_tcp_port)  # Debug print
-            tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            tcp_socket.connect((server_ip, server_tcp_port))
-            print("Reconnected to a new server.")
-
-            # Restart the thread to listen for messages from the new server
-            threading.Thread(target=receive_messages, args=(tcp_socket,)).start()
-            return
+            print(f"Attempting to connect to server at {server_address}")
+            self.socket.connect(server_address)
+            
+            # Send initial connection message
+            self.socket.send(json.dumps({"type": "CLIENT"}).encode())
+            
+            # Handle potential redirection
+            response = json.loads(self.socket.recv(BUFFER_SIZE).decode())
+            if response['type'] == 'REDIRECT':
+                self.socket.close()
+                leader_address = response['leader'].split(':')
+                print(f"Redirected to leader at {leader_address}")
+                return self.connect_to_server((leader_address[0], int(leader_address[1])))
+            
+            print(f"Connected to server at {server_address}")
+            self.server_address = server_address
+            return True
         except Exception as e:
-            print(f"Failed to connect to a new server: {e}")
-            time.sleep(2)  # Wait for 2 seconds before retrying
+            print(f"Failed to connect to server at {server_address}: {e}")
+            return False
 
-    print("Unable to reconnect to a new server after several attempts.")
+    def send_message(self, message):
+        try:
+            self.socket.send(json.dumps({"type": "CLIENT_MESSAGE", "content": message}).encode())
+            response = json.loads(self.socket.recv(BUFFER_SIZE).decode())
+            print(f"Server response: {response['message']}")
+        except Exception as e:
+            print(f"Error sending message: {e}")
 
-my_uid = None  # This will store the client's UID
+    def receive_messages(self):
+        while self.running:
+            try:
+                message = self.socket.recv(BUFFER_SIZE)
+                if not message:
+                    break
+                
+                message_data = json.loads(message.decode())
+                
+                if message_data['type'] == 'HEARTBEAT':
+                    # Send heartbeat response
+                    self.socket.send(json.dumps({"type": "HEARTBEAT_RESPONSE"}).encode())
+                elif message_data['type'] == 'COORDINATOR':
+                    print(f"New leader announced: {message_data['leader']}")
+                else:
+                    print(f"Received message: {message_data}")
 
-# Main function to start the client
-def main():
-    global my_uid
-
-    try:
-        server_ip, server_tcp_port = discover_server()
-        print("Discovered server IP:", server_ip, "Port:", server_tcp_port)  # Debug print
-
-        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_socket.connect((server_ip, server_tcp_port))
-        print("Connected to the server.")
-
-        # Start a thread to listen for messages from the server
-        threading.Thread(target=receive_messages, args=(tcp_socket,)).start()
-
-        # Get the client's UID from the server
-        my_uid = tcp_socket.getsockname()[1]
-        print(f"My UID is {my_uid}")
-
-        # User interaction loop
-        while True:
-            print("\nMenu:")
-            print("1. Send a message")
-            print("2. Shut down client")
-            choice = input("Enter your choice (1-2): ")
-
-            # Send a message to another client
-            if choice == '1':
-                message = input("Enter your message: ")
-                target_client_addr = input("Enter the target client's address: ")
-                sender_addr = str(tcp_socket.getsockname())  # Get the client's own address
-                send_message_to_client(tcp_socket, target_client_addr, sender_addr, message)
-            # Shut down the client
-            elif choice == '2':
-                print("Shutting down client...")
-                shutdown_event.set()  # Signal the receive_messages thread to stop
-                tcp_socket.close()
-                print("Client shut down.")
+            except Exception as e:
+                print(f"Error receiving message: {e}")
                 break
-            else:
-                print("Invalid choice. Please try again.")
-        
-    except Exception as e:
-        print("An error occurred:", e)
+
+        print("Disconnected from server")
+        self.reconnect()
+
+    def reconnect(self):
+        while self.running:
+            print("Attempting to reconnect...")
+            if self.connect_to_server():
+                threading.Thread(target=self.receive_messages).start()
+                break
+            time.sleep(5)
+
+    def run(self):
+        if self.connect_to_server():
+            receive_thread = threading.Thread(target=self.receive_messages)
+            receive_thread.start()
+
+            while self.running:
+                message = input("Enter message (or 'exit' to quit): ")
+                if message.lower() == 'exit':
+                    self.running = False
+                    self.socket.close()
+                    break
+                self.send_message(message)
+
+            receive_thread.join()
+        else:
+            print("Failed to connect to any server. Exiting.")
 
 if __name__ == "__main__":
-    main()
+    client = Client()
+    client.run()
