@@ -20,7 +20,6 @@ is_leader = False
 running = True
 shutdown_event = threading.Event()
 
-# UDP Broadcast for dynamic discovery
 def udp_broadcast():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -29,7 +28,31 @@ def udp_broadcast():
             udp_socket.sendto(message.encode(), ('<broadcast>', UDP_PORT))
             time.sleep(10)
 
-# TCP Client handler
+def udp_listener():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udp_socket.bind(('', UDP_PORT))
+        while running:
+            try:
+                message, addr = udp_socket.recvfrom(BUFFER_SIZE)
+                message_data = json.loads(message.decode())
+                if message_data['type'] == 'SERVER_ANNOUNCE':
+                    if message_data['id'] not in servers and message_data['id'] != server_id:
+                        print(f"Discovered new server: {message_data['id']}")
+                        servers[message_data['id']] = (addr[0], message_data['tcp_port'])
+                        connect_to_server(message_data['id'], addr[0], message_data['tcp_port'])
+            except Exception as e:
+                print(f"Error in UDP listener: {e}")
+
+def connect_to_server(server_id, ip, port):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((ip, port))
+            s.send(json.dumps({"type": "SERVER", "id": server_id}).encode())
+            threading.Thread(target=handle_server_message, args=(s,)).start()
+    except Exception as e:
+        print(f"Failed to connect to server {server_id}: {e}")
+
 def client_handler(client_socket, addr):
     global clients
     while not shutdown_event.is_set():
@@ -201,8 +224,11 @@ def handle_server_message(server_socket):
 def main():
     global running, leader
 
-    udp_thread = threading.Thread(target=udp_broadcast)
-    udp_thread.start()
+    udp_broadcast_thread = threading.Thread(target=udp_broadcast)
+    udp_broadcast_thread.start()
+
+    udp_listener_thread = threading.Thread(target=udp_listener)
+    udp_listener_thread.start()
 
     heartbeat_thread = threading.Thread(target=send_heartbeat)
     heartbeat_thread.start()
@@ -219,8 +245,6 @@ def main():
                 client_socket, addr = tcp_socket.accept()
                 print(f"New connection from {addr}")
                 
-                # Determine if it's a client or server connection
-                client_socket.send(json.dumps({"type": "IDENTIFY"}).encode())
                 identity = json.loads(client_socket.recv(BUFFER_SIZE).decode())
                 
                 if identity['type'] == 'SERVER':
@@ -255,7 +279,8 @@ def main():
         else:
             print("Invalid command.")
 
-    udp_thread.join()
+    udp_broadcast_thread.join()
+    udp_listener_thread.join()
     heartbeat_thread.join()
     connection_thread.join()
 
