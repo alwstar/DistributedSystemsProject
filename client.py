@@ -9,172 +9,164 @@ SERVER_UDP_PORT = 42000
 BUFFER_SIZE = 1024
 
 # Global variables
-shutdown_event = threading.Event()
-my_id = None
-current_chatroom = None
-is_participant = False
-leader_id = None
+shutdownEvent = threading.Event()
+myId = None
+currentChatroom = None
+isParticipant = False
+leaderId = None
 
-# Function to create XML message
-def create_xml_message(message_type, **kwargs):
+def createXmlMessage(messageType, **kwargs):
     root = ET.Element("message")
-    ET.SubElement(root, "type").text = message_type
+    ET.SubElement(root, "type").text = messageType
     for key, value in kwargs.items():
         ET.SubElement(root, key).text = str(value)
     return ET.tostring(root)
 
-# Function to parse XML message
-def parse_xml_message(xml_string):
-    root = ET.fromstring(xml_string)
-    message_type = root.find("type").text
+def parseXmlMessage(xmlString):
+    root = ET.fromstring(xmlString)
+    messageType = root.find("type").text
     data = {child.tag: child.text for child in root if child.tag != "type"}
-    return message_type, data
+    return messageType, data
 
-# Discover the server using UDP broadcast
-def discover_server():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        udp_socket.bind(('', SERVER_UDP_PORT))
+def locateServer():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
+        udpSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udpSocket.bind(('', SERVER_UDP_PORT))
 
         while True:
-            message, server_addr = udp_socket.recvfrom(BUFFER_SIZE)
-            server_ip = server_addr[0]
-            _, server_tcp_port = message.decode().split(':')
-            print(f"Discovered server at {server_ip} on port {server_tcp_port}")
-            return server_ip, int(server_tcp_port)
+            message, serverAddr = udpSocket.recvfrom(BUFFER_SIZE)
+            serverIp = serverAddr[0]
+            _, serverTcpPort = message.decode().split(':')
+            print(f"Located server at {serverIp} on port {serverTcpPort}")
+            return serverIp, int(serverTcpPort)
 
-# Function to send messages to the server
-def send_message_to_server(tcp_socket, message_type, **kwargs):
+def sendMessageToServer(tcpSocket, messageType, **kwargs):
     try:
-        message = create_xml_message(message_type, **kwargs)
-        tcp_socket.send(message)
+        message = createXmlMessage(messageType, **kwargs)
+        tcpSocket.send(message)
     except ConnectionError:
-        print("Lost connection to the server.")
-        tcp_socket.close()
+        print("Connection to the server lost.")
+        tcpSocket.close()
 
-# Function to handle incoming messages from the server
-def receive_messages(tcp_socket):
-    global my_id, current_chatroom, is_participant, leader_id
-    while not shutdown_event.is_set():
+def receiveMessages(tcpSocket):
+    global myId, currentChatroom, isParticipant, leaderId
+    while not shutdownEvent.is_set():
         try:
-            message = tcp_socket.recv(BUFFER_SIZE)
+            message = tcpSocket.recv(BUFFER_SIZE)
             if not message:
                 break
 
-            message_type, data = parse_xml_message(message)
+            messageType, data = parseXmlMessage(message)
 
-            if message_type == "leader_announcement":
-                leader_id = int(data['leader_port'])
-                print(f"New leader is {data['leader_ip']}:{leader_id}")
-                is_participant = False
-            elif message_type == "election":
-                handle_election_message(tcp_socket, data)
-            elif message_type == "chatroom_announcement":
-                print(f"Client {data['client_ip']}:{data['client_port']} has {data['action']} chatroom {data['chatroom']}")
-            elif message_type == "chatroom_message":
+            if messageType == "leader_announcement":
+                leaderId = int(data['leader_port'])
+                print(f"New leader is {data['leader_ip']}:{leaderId}")
+                isParticipant = False
+            elif messageType == "election":
+                processElectionMessage(tcpSocket, data)
+            elif messageType == "chatroom_update":
+                print(f"User {data['user_ip']}:{data['user_port']} has {data['action']} chatroom {data['chatroom']}")
+            elif messageType == "chatroom_message":
                 print(f"[{data['chatroom']}] {data['sender_ip']}:{data['sender_port']}: {data['content']}")
             else:
-                print(f"Received unknown message type: {message_type}")
+                print(f"Received unknown message type: {messageType}")
 
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
 
-    if not shutdown_event.is_set():
-        print("Lost connection to the server. Attempting to reconnect...")
-        reconnect()
+    if not shutdownEvent.is_set():
+        print("Connection to the server lost. Attempting to reconnect...")
+        reestablishConnection()
 
-# Handle election messages (LCR algorithm)
-def handle_election_message(tcp_socket, data):
-    global my_id, is_participant, leader_id
-    sender_id = int(data['mid'])
-    is_leader = data['isLeader'] == 'true'
+def processElectionMessage(tcpSocket, data):
+    global myId, isParticipant, leaderId
+    senderId = int(data['mid'])
+    isLeader = data['isLeader'] == 'true'
 
-    if is_leader:
-        leader_id = sender_id
-        is_participant = False
-        print(f"New leader elected: {leader_id}")
-    elif not is_participant:
-        if sender_id < my_id:
-            is_participant = True
-            send_message_to_server(tcp_socket, "election", mid=str(my_id), isLeader="false")
+    if isLeader:
+        leaderId = senderId
+        isParticipant = False
+        print(f"New leader elected: {leaderId}")
+    elif not isParticipant:
+        if senderId < myId:
+            isParticipant = True
+            sendMessageToServer(tcpSocket, "election", mid=str(myId), isLeader="false")
         else:
-            send_message_to_server(tcp_socket, "election", mid=str(sender_id), isLeader="false")
-    elif sender_id == my_id:
-        leader_id = my_id
-        is_participant = False
-        send_message_to_server(tcp_socket, "election", mid=str(my_id), isLeader="true")
+            sendMessageToServer(tcpSocket, "election", mid=str(senderId), isLeader="false")
+    elif senderId == myId:
+        leaderId = myId
+        isParticipant = False
+        sendMessageToServer(tcpSocket, "election", mid=str(myId), isLeader="true")
     else:
-        send_message_to_server(tcp_socket, "election", mid=str(sender_id), isLeader="false")
+        sendMessageToServer(tcpSocket, "election", mid=str(senderId), isLeader="false")
 
-# Function to reconnect to the server
-def reconnect():
-    global tcp_socket
-    while not shutdown_event.is_set():
+def reestablishConnection():
+    global tcpSocket
+    while not shutdownEvent.is_set():
         try:
-            server_ip, server_tcp_port = discover_server()
-            new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            new_socket.connect((server_ip, server_tcp_port))
-            tcp_socket = new_socket
+            serverIp, serverTcpPort = locateServer()
+            newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            newSocket.connect((serverIp, serverTcpPort))
+            tcpSocket = newSocket
             print("Reconnected to the server.")
-            threading.Thread(target=receive_messages, args=(tcp_socket,)).start()
-            if current_chatroom:
-                send_message_to_server(tcp_socket, "chatroom", action="join", chatroom=current_chatroom)
+            threading.Thread(target=receiveMessages, args=(tcpSocket,)).start()
+            if currentChatroom:
+                sendMessageToServer(tcpSocket, "chatroom", action="join", chatroom=currentChatroom)
             return
         except Exception as e:
             print(f"Failed to reconnect: {e}")
             time.sleep(5)
 
-# Main function to start the client
 def main():
-    global my_id, tcp_socket, current_chatroom
+    global myId, tcpSocket, currentChatroom
 
     try:
-        server_ip, server_tcp_port = discover_server()
-        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_socket.connect((server_ip, server_tcp_port))
+        serverIp, serverTcpPort = locateServer()
+        tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcpSocket.connect((serverIp, serverTcpPort))
         print("Connected to the server.")
 
-        my_id = tcp_socket.getsockname()[1]
-        print(f"My ID is {my_id}")
+        myId = tcpSocket.getsockname()[1]
+        print(f"My ID is {myId}")
 
-        threading.Thread(target=receive_messages, args=(tcp_socket,)).start()
+        threading.Thread(target=receiveMessages, args=(tcpSocket,)).start()
 
-        # Start the election process
-        send_message_to_server(tcp_socket, "election", mid=str(my_id), isLeader="false")
+        # Initiate the election process
+        sendMessageToServer(tcpSocket, "election", mid=str(myId), isLeader="false")
 
         while True:
-            print("\nSelect an option:")
-            print("1. Join a chatroom")
-            print("2. Leave current chatroom")
-            print("3. Send a message to current chatroom")
-            print("4. Initiate leader election")
-            print("5. Shut down client")
+            print("\nChoose an option:")
+            print("1. Enter a chatroom")
+            print("2. Exit current chatroom")
+            print("3. Send a message in current chatroom")
+            print("4. Start leader election")
+            print("5. Disconnect client")
             choice = input("Enter your choice (1-5): ")
 
             if choice == '1':
                 chatroom = input("Enter chatroom name: ")
-                current_chatroom = chatroom
-                send_message_to_server(tcp_socket, "chatroom", action="join", chatroom=chatroom)
+                currentChatroom = chatroom
+                sendMessageToServer(tcpSocket, "chatroom", action="join", chatroom=chatroom)
             elif choice == '2':
-                if current_chatroom:
-                    send_message_to_server(tcp_socket, "chatroom", action="leave", chatroom=current_chatroom)
-                    current_chatroom = None
+                if currentChatroom:
+                    sendMessageToServer(tcpSocket, "chatroom", action="leave", chatroom=currentChatroom)
+                    currentChatroom = None
                 else:
                     print("You are not in any chatroom.")
             elif choice == '3':
-                if current_chatroom:
-                    message = input("Enter your message: ")
-                    send_message_to_server(tcp_socket, "chatroom", action="message", chatroom=current_chatroom, content=message)
+                if currentChatroom:
+                    message = input("Type your message: ")
+                    sendMessageToServer(tcpSocket, "chatroom", action="message", chatroom=currentChatroom, content=message)
                 else:
                     print("You are not in any chatroom.")
             elif choice == '4':
-                send_message_to_server(tcp_socket, "election", mid=str(my_id), isLeader="false")
-                print("Initiated leader election.")
+                sendMessageToServer(tcpSocket, "election", mid=str(myId), isLeader="false")
+                print("Started leader election.")
             elif choice == '5':
-                print("Shutting down client...")
-                shutdown_event.set()
-                tcp_socket.close()
+                print("Disconnecting client...")
+                shutdownEvent.set()
+                tcpSocket.close()
                 break
             else:
                 print("Invalid choice. Please try again.")
@@ -182,7 +174,7 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
 
-    print("Client shut down.")
+    print("Client disconnected.")
 
 if __name__ == "__main__":
     main()

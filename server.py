@@ -10,225 +10,210 @@ BUFFER_SIZE = 1024
 TCP_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 6000
 
 # Global variables
-clients = {}  # Dictionary to store client information (socket, address)
+connectedUsers = {}  # Dictionary to store user information (socket, address)
 leader = None  # Current leader
-running = True  # Server running state
-chatrooms = {}  # Dictionary to store chatrooms and their members
+isActive = True  # Server active state
+discussionGroups = {}  # Dictionary to store discussion groups and their members
 
 # Shutdown event
-shutdown_event = threading.Event()
+shutdownEvent = threading.Event()
 
-def start_election():
+def initiateLeaderElection():
     global leader
-    if clients:
-        max_id = max(clients, key=lambda addr: addr[1])
-        leader = max_id
-        announce_leader(leader)
+    if connectedUsers:
+        maxId = max(connectedUsers, key=lambda addr: addr[1])
+        leader = maxId
+        announceLeader(leader)
     else:
         leader = None
-        print("No clients connected. Cannot start election.")
+        print("No users connected. Cannot initiate leader election.")
 
-# UDP Broadcast for dynamic discovery
-def udp_broadcast():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        while running:
-            message = f"Server here:{TCP_PORT}".encode()
-            udp_socket.sendto(message, ('<broadcast>', UDP_PORT))
+def broadcastServerPresence():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
+        udpSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        while isActive:
+            message = f"ServerAvailable:{TCP_PORT}".encode()
+            udpSocket.sendto(message, ('<broadcast>', UDP_PORT))
             time.sleep(10)
 
-# Function to create XML message
-def create_xml_message(message_type, **kwargs):
+def createXmlMessage(messageType, **kwargs):
     root = ET.Element("message")
-    ET.SubElement(root, "type").text = message_type
+    ET.SubElement(root, "type").text = messageType
     for key, value in kwargs.items():
         ET.SubElement(root, key).text = str(value)
     return ET.tostring(root)
 
-# Function to parse XML message
-def parse_xml_message(xml_string):
-    root = ET.fromstring(xml_string)
-    message_type = root.find("type").text
+def parseXmlMessage(xmlString):
+    root = ET.fromstring(xmlString)
+    messageType = root.find("type").text
     data = {child.tag: child.text for child in root if child.tag != "type"}
-    return message_type, data
+    return messageType, data
 
-# TCP Client handler
-def client_handler(client_socket, addr):
-    global clients, leader
-    while not shutdown_event.is_set():
+def userConnectionManager(userSocket, addr):
+    global connectedUsers, leader
+    while not shutdownEvent.is_set():
         try:
-            message = client_socket.recv(BUFFER_SIZE)
+            message = userSocket.recv(BUFFER_SIZE)
             if not message:
                 break
 
-            message_type, data = parse_xml_message(message)
+            messageType, data = parseXmlMessage(message)
 
-            if message_type == "election":
-                handle_election_message(client_socket, addr, data)
-            elif message_type == "chatroom":
-                handle_chatroom_message(client_socket, addr, data)
+            if messageType == "election":
+                processElectionMessage(userSocket, addr, data)
+            elif messageType == "chatroom":
+                processChatroomMessage(userSocket, addr, data)
             else:
-                print(f"Unknown message type: {message_type}")
+                print(f"Unknown message type received: {messageType}")
 
         except Exception as e:
-            print(f"Error handling client {addr}: {e}")
+            print(f"Error handling user {addr}: {e}")
             break
 
-    client_socket.close()
+    userSocket.close()
     print(f"Connection with {addr} closed")
-    if addr in clients:
-        del clients[addr]
-        for chatroom in chatrooms.values():
-            if addr in chatroom:
-                chatroom.remove(addr)
+    if addr in connectedUsers:
+        del connectedUsers[addr]
+        for group in discussionGroups.values():
+            if addr in group:
+                group.remove(addr)
         if addr == leader:
-            print("Leader has disconnected. Starting a new election.")
-            start_election()
+            print("Leader has disconnected. Initiating new leader election.")
+            initiateLeaderElection()
 
-
-# Handle election messages (LCR algorithm)
-def handle_election_message(client_socket, addr, data):
+def processElectionMessage(userSocket, addr, data):
     global leader
-    sender_id = data['mid']
-    is_leader = data['isLeader'] == 'true'
+    senderId = data['mid']
+    isLeader = data['isLeader'] == 'true'
 
-    if is_leader:
-        leader = (addr[0], int(sender_id))
-        announce_leader(leader)
+    if isLeader:
+        leader = (addr[0], int(senderId))
+        announceLeader(leader)
     else:
-        # Forward the message to the next client in the ring
-        next_client = get_next_client(addr)
-        if next_client:
-            clients[next_client].send(create_xml_message("election", mid=sender_id, isLeader="false"))
+        nextUser = getNextUser(addr)
+        if nextUser:
+            connectedUsers[nextUser].send(createXmlMessage("election", mid=senderId, isLeader="false"))
 
-# Get the next client in the ring
-def get_next_client(current_addr):
-    client_list = list(clients.keys())
-    if current_addr in client_list:
-        current_index = client_list.index(current_addr)
-        next_index = (current_index + 1) % len(client_list)
-        return client_list[next_index]
+def getNextUser(currentAddr):
+    userList = list(connectedUsers.keys())
+    if currentAddr in userList:
+        currentIndex = userList.index(currentAddr)
+        nextIndex = (currentIndex + 1) % len(userList)
+        return userList[nextIndex]
     return None
 
-# Announce the new leader
-def announce_leader(leader_addr):
-    leader_announcement = create_xml_message("leader_announcement", leader_ip=leader_addr[0], leader_port=leader_addr[1])
-    for client_socket in clients.values():
-        client_socket.send(leader_announcement)
-    print(f"Leader is {leader_addr}")
+def announceLeader(leaderAddr):
+    leaderAnnouncement = createXmlMessage("leader_announcement", leader_ip=leaderAddr[0], leader_port=leaderAddr[1])
+    for userSocket in connectedUsers.values():
+        userSocket.send(leaderAnnouncement)
+    print(f"Leader is {leaderAddr}")
 
-# Handle chatroom messages
-def handle_chatroom_message(client_socket, addr, data):
+def processChatroomMessage(userSocket, addr, data):
     action = data['action']
     chatroom = data['chatroom']
 
     if action == "join":
-        if chatroom not in chatrooms:
-            chatrooms[chatroom] = set()
-        chatrooms[chatroom].add(addr)
-        announce_client_joined(chatroom, addr)
+        if chatroom not in discussionGroups:
+            discussionGroups[chatroom] = set()
+        discussionGroups[chatroom].add(addr)
+        announceUserJoined(chatroom, addr)
     elif action == "leave":
-        if chatroom in chatrooms and addr in chatrooms[chatroom]:
-            chatrooms[chatroom].remove(addr)
-            announce_client_left(chatroom, addr)
+        if chatroom in discussionGroups and addr in discussionGroups[chatroom]:
+            discussionGroups[chatroom].remove(addr)
+            announceUserLeft(chatroom, addr)
     elif action == "message":
-        if chatroom in chatrooms and addr in chatrooms[chatroom]:
-            broadcast_chatroom_message(chatroom, addr, data['content'])
+        if chatroom in discussionGroups and addr in discussionGroups[chatroom]:
+            broadcastChatroomMessage(chatroom, addr, data['content'])
 
-# Announce client joined chatroom
-def announce_client_joined(chatroom, addr):
-    announcement = create_xml_message("chatroom_announcement", action="joined", chatroom=chatroom, client_ip=addr[0], client_port=addr[1])
-    for client_addr in chatrooms[chatroom]:
-        if client_addr in clients:
-            clients[client_addr].send(announcement)
+def announceUserJoined(chatroom, addr):
+    announcement = createXmlMessage("chatroom_update", action="joined", chatroom=chatroom, user_ip=addr[0], user_port=addr[1])
+    for userAddr in discussionGroups[chatroom]:
+        if userAddr in connectedUsers:
+            connectedUsers[userAddr].send(announcement)
 
-# Announce client left chatroom
-def announce_client_left(chatroom, addr):
-    announcement = create_xml_message("chatroom_announcement", action="left", chatroom=chatroom, client_ip=addr[0], client_port=addr[1])
-    for client_addr in chatrooms[chatroom]:
-        if client_addr in clients:
-            clients[client_addr].send(announcement)
+def announceUserLeft(chatroom, addr):
+    announcement = createXmlMessage("chatroom_update", action="left", chatroom=chatroom, user_ip=addr[0], user_port=addr[1])
+    for userAddr in discussionGroups[chatroom]:
+        if userAddr in connectedUsers:
+            connectedUsers[userAddr].send(announcement)
 
-# Broadcast message to chatroom
-def broadcast_chatroom_message(chatroom, sender_addr, content):
-    message = create_xml_message("chatroom_message", chatroom=chatroom, sender_ip=sender_addr[0], sender_port=sender_addr[1], content=content)
-    for client_addr in chatrooms[chatroom]:
-        if client_addr in clients:
-            clients[client_addr].send(message)
+def broadcastChatroomMessage(chatroom, senderAddr, content):
+    message = createXmlMessage("chatroom_message", chatroom=chatroom, sender_ip=senderAddr[0], sender_port=senderAddr[1], content=content)
+    for userAddr in discussionGroups[chatroom]:
+        if userAddr in connectedUsers:
+            connectedUsers[userAddr].send(message)
 
-# Shut down the server
-def shutdown_server(tcp_socket):
-    global running
-    running = False
-    shutdown_event.set()
+def terminateServer(tcpSocket):
+    global isActive
+    isActive = False
+    shutdownEvent.set()
 
-    for client_socket in clients.values():
+    for userSocket in connectedUsers.values():
         try:
-            client_socket.close()
+            userSocket.close()
         except Exception as e:
-            print(f"Error closing client connection: {e}")
+            print(f"Error closing user connection: {e}")
 
-    clients.clear()
-    chatrooms.clear()
-    tcp_socket.close()
-    print("Server has been shut down.")
+    connectedUsers.clear()
+    discussionGroups.clear()
+    tcpSocket.close()
+    print("Server has been terminated.")
 
-# List all connected clients
-def list_connected_clients():
-    if clients:
-        print("Connected clients:")
-        for addr in clients.keys():
-            print(f"Client at {addr}")
+def displayConnectedUsers():
+    if connectedUsers:
+        print("Connected users:")
+        for addr in connectedUsers.keys():
+            print(f"User at {addr}")
     else:
-        print("No clients connected.")
+        print("No users connected.")
 
 def main():
-    global running, leader
+    global isActive, leader
 
-    tcp_port = TCP_PORT
+    tcpPort = TCP_PORT
     if len(sys.argv) > 1:
         try:
-            tcp_port = int(sys.argv[1])
+            tcpPort = int(sys.argv[1])
         except ValueError:
             print("Invalid port number. Using default port:", TCP_PORT)
 
-    udp_thread = threading.Thread(target=udp_broadcast)
-    udp_thread.start()
+    broadcastThread = threading.Thread(target=broadcastServerPresence)
+    broadcastThread.start()
 
-    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    tcp_socket.bind(('', tcp_port))
-    tcp_socket.listen()
-    print(f"TCP server listening on port {tcp_port}")
+    tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcpSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    tcpSocket.bind(('', tcpPort))
+    tcpSocket.listen()
+    print(f"TCP server listening on port {tcpPort}")
 
-    def handle_connections(tcp_socket):
-        global clients, running
+    def manageConnections(tcpSocket):
+        global connectedUsers, isActive
 
-        while running:
+        while isActive:
             try:
-                client_socket, addr = tcp_socket.accept()
-                clients[addr] = client_socket
+                userSocket, addr = tcpSocket.accept()
+                connectedUsers[addr] = userSocket
                 print(f"Connected to {addr}")
-                threading.Thread(target=client_handler, args=(client_socket, addr)).start()
+                threading.Thread(target=userConnectionManager, args=(userSocket, addr)).start()
 
                 if leader is None:
-                    start_election()
+                    initiateLeaderElection()
 
             except Exception as e:
-                print(f"Error in connection handling: {e}")
+                print(f"Error in connection management: {e}")
 
-        tcp_socket.close()
+        tcpSocket.close()
 
-    connection_thread = threading.Thread(target=handle_connections, args=(tcp_socket,))
-    connection_thread.start()
+    connectionThread = threading.Thread(target=manageConnections, args=(tcpSocket,))
+    connectionThread.start()
 
-    while running:
-        cmd = input("\nSelect an option\n1: Show current leader\n2: Show clients\n3: Shut down server\n")
+    while isActive:
+        cmd = input("\nSelect an option\n1: Display current leader\n2: Show users\n3: Terminate server\n")
         if cmd == '3':
-            shutdown_server(tcp_socket)
+            terminateServer(tcpSocket)
             break
         elif cmd == '2':
-            list_connected_clients()
+            displayConnectedUsers()
         elif cmd == '1':
             if leader:
                 print(f"Current leader is: {leader}")
@@ -237,8 +222,8 @@ def main():
         else:
             print("Invalid command.")
 
-    connection_thread.join()
-    udp_thread.join()
+    connectionThread.join()
+    broadcastThread.join()
 
 if __name__ == "__main__":
     main()
