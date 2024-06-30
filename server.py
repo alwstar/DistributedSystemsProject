@@ -5,7 +5,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 # Constants
-UDP_PORT = 5000
+UDP_PORT = 42000
 BUFFER_SIZE = 1024
 TCP_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 6000
 

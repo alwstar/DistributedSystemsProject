@@ -5,7 +5,7 @@ import time
 import xml.etree.ElementTree as ET
 
 # Constants
-SERVER_UDP_PORT = 5000
+SERVER_UDP_PORT = 42000
 BUFFER_SIZE = 1024
 
 # Global variables
